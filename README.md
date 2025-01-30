@@ -7,13 +7,17 @@ This Streamlit application provides interactive visualizations for football (soc
 - Passing Network Analysis
 - Player Comparison Metrics
 
-1. Crear entorno virtual
+1. Create a virtual environment
 ```bash
 python3 -m venv env
 ```
 
-2. Instalar dependencias
+2. Install dependencias
+```bash
 pip install -r requirements
+```
 
 3. Run the Streamlit app
+```bash
 streamlit run <app_name.py>
+```

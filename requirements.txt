@@ -1,0 +1,5 @@
+mplsoccer
+numpy
+pandas
+plotly
+streamlit

@@ -1,5 +1,5 @@
 # TFG
-# Football Statistics Visualization Dashboard
+## Football Statistics Visualization Dashboard
 
 This Streamlit application provides interactive visualizations for football (soccer) player and team statistics, including:
 
@@ -8,7 +8,9 @@ This Streamlit application provides interactive visualizations for football (soc
 - Player Comparison Metrics
 
 1. Crear entorno virtual
+```bash
 python3 -m venv env
+```
 
 2. Instalar dependencias
 pip install -r requirements

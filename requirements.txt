@@ -1,5 +1,11 @@
+asyncio
+matplotlib
 mplsoccer
+networkx
 numpy
 pandas
 plotly
+requests
+seaborn
+scikit-learn
 streamlit

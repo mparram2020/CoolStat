@@ -3,69 +3,78 @@ import pandas as pd
 import requests
 import os
 
-# Cargar variables de entorno
-API_KEY = os.getenv("FOOTBALL_API_KEY", "3c0b865ba2cb4764b7a049d09e6fe28b")  # Usa una variable de entorno
+# Configuración de la página
+st.set_page_config(page_title="CoolStat", page_icon="⚽", layout="wide")
 
-# Diccionario de ligas con sus códigos
-LEAGUES = {
-    "🇩🇪 Bundesliga": "BL1",
-    "🇪🇸 LaLiga": "PD",
-    "🇫🇷 Ligue 1": "FL1",
-    "🇬🇧 Premier League": "PL",
-    "🇮🇹 Serie A": "SA"
-}
-
+# Cargar datos
 @st.cache_data
-def get_matches(league_code):
-    url = f"https://api.football-data.org/v4/competitions/{league_code}/matches"
-    headers = {"X-Auth-Token": API_KEY}
+def load_data():
+    eurocopa = pd.read_csv("data/eurocopa_datos.csv")
+    copa_america = pd.read_csv("data/copa_america_datos.csv")
+    return eurocopa, copa_america
+
+
+# Menú lateral
+with st.sidebar.header("🏆 Campeonatos de fútbol"):
+
+    eurocopa, copa_america = load_data()
+
+    eurocopa["competition"] = eurocopa["competition"].replace("Europe - UEFA Euro", "Eurocopa")
+    copa_america["competition"] = copa_america["competition"].replace("South America - Copa America", "Copa América")
     
-    response = requests.get(url, headers=headers)
+    # Lista de competiciones disponibles
+    competition_list = (
+        eurocopa["competition"].unique().tolist() + copa_america["competition"].unique().tolist()
+    )
+    selected_competition = st.sidebar.selectbox("Selecciona una competición", competition_list)
+
+    # st.sidebar.write(f"📌 Has seleccionado: {selected_competition}")
+
+    # Selección de equipos según la competición elegida
+    df_selected = eurocopa if selected_competition in eurocopa["competition"].unique() else copa_america
     
-    if response.status_code == 200:
-        return response.json().get("matches", [])
-    else:
-        st.error(f"Error al obtener datos: {response.status_code}")
-        return []
-    
-@st.cache_data
-def get_standings(league_code):
-    url = f"https://api.football-data.org/v4/competitions/{league_code}/standings"
-    headers = {"X-Auth-Token": API_KEY}
-    
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200:
-        return response.json().get("standings", [])
-    else:
-        st.error(f"Error al obtener datos: {response.status_code}")
-        return []
+    team_list = sorted(df_selected["home_team"].unique().tolist())
+    selected_team = st.sidebar.selectbox("Selecciona un equipo", team_list)
+
+    # st.sidebar.write(f"🏅 Has seleccionado: {selected_team}")
+
+    # Crear nueva columna con los equipos del partido
+    eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
+
+    copa_america["match_teams"] = copa_america["home_team"] + " " + copa_america['home_score'].astype(str) + " - " + copa_america['away_score'].astype(str) + " " + copa_america["away_team"]
+
+
+    # Filtrar partidos donde el equipo haya jugado
+    team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)]
+
+    # Ver partidos del equipo seleccionado
+    df_selected_match = st.sidebar.selectbox("Selecciona un partido", team_matches["match_teams"].unique())
+    match_details = team_matches[team_matches["match_teams"] == df_selected_match]
     
 
+
+
+    #with st.expander('ℹ️ Disclaimer & Info'):
+    #    st.write('''
+    #    - Todos los datos en esta app provienen del repositorio de datos abiertos de StatsBomb.
+    #    - Esta app es solo para fines educativos.
+    #    ''')
 
 def main():
-    st.set_page_config(page_title="CoolStat", page_icon=":soccer:", layout="wide")
-    st.title(":soccer: CoolStat Streamlit App")
+    st.title("⚽ CoolStat Streamlit App")
+    st.markdown("##### Página web interactiva para visualizar datos de partidos de la Eurocopa y la Copa América")
 
-    # Barra lateral para seleccionar liga
-    st.sidebar.header("Top Competitions")
-    selected_league = st.sidebar.radio("Select a league", list(LEAGUES.keys()))
+    st.subheader(f"📊 Estadísticas de la {selected_competition}")
+    "\n"
 
-    # Obtener código de la liga seleccionada
-    league_code = LEAGUES.get(selected_league)
+    match_report, data_tab, heatmap_tab, passing_network_tab = st.tabs(['Informe del partido', 
+                                                         'Lista de jugadores',
+                                                         'Mapa de calor',
+                                                         'Red de pases',])
 
-    # Cargar datos según la liga seleccionada
-    matches = get_matches(league_code)
-    df_matches = pd.DataFrame(matches)
+    with match_report:
+        st.write(f"Partidos de {selected_team}:")
+        st.write(team_matches)
 
-    standings = get_standings(league_code)
-    df_standings = pd.DataFrame(standings)
-
-    if df_matches.empty:
-        st.warning(f"No se encontraron datos para {selected_league}.")
-    else:
-        st.write(f"**Partidos de {selected_league}:**")
-        st.dataframe(df_matches)
-
-        st.write(f"**Tabla de posiciones de {selected_league}:**")
-        st.dataframe(df_standings)
+if __name__ == "__main__":
+    main()

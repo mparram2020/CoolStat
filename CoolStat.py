@@ -38,7 +38,10 @@ def lineups():
 @st.cache_data
 def load_events():
     try:
-        return pd.read_csv("data/all_matches.csv")
+        euro_all_matches = pd.read_csv("data/euro_all_events.csv")
+        copa_america_all_matches = pd.read_csv("data/copa_america_all_events.csv")
+        return euro_all_matches, copa_america_all_matches
+    
     except FileNotFoundError as e:
         st.error(f"Error al cargar los eventos: {e}")
         st.stop()
@@ -78,14 +81,17 @@ with st.sidebar.header("🏆 Campeonatos de fútbol"):
 
 
 def filter_passes(player, match_id):
-    all_events_df = load_events()
+    euro_all_events_df, copa_america_all_events_df = load_events()
+    
+    # Combinar DataFrames de eventos
+    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
     
     # Filtrar eventos de tipo "Pass"
     passes = all_events_df[(all_events_df["type"] == "Pass") & (all_events_df["match_id"] == match_id)]
 
     # Convertir 'location' y 'pass_end_location' a listas si vienen como string
-    passes['location'] = passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
-    passes['pass_end_location'] = passes['pass_end_location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+    passes.loc[:, 'location'] = passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+    passes.loc[:, 'pass_end_location'] = passes['pass_end_location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
 
     # Filtrar filas con valores válidos en 'location' y 'pass_end_location'
     passes = passes[passes['location'].notnull() & passes['pass_end_location'].notnull()]
@@ -111,28 +117,28 @@ def passMap(player, match_id):
 
     # Dibujar el campo de fútbol
     pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black', line_zorder=2)
-    fig, ax = pitch.draw(figsize=(16, 11), constrained_layout=True, tight_layout=False)
+    fig, ax = pitch.draw(figsize=(14, 9), constrained_layout=True, tight_layout=False)
     fig.set_facecolor('white')
 
     # Dibujar flechas para los pases exitosos
     pitch.arrows(successful_passes["x"], successful_passes["y"],
                  successful_passes["pass_end_x"], successful_passes["pass_end_y"],
-                 width=3, headwidth=6, headlength=5, color="green", ax=ax, zorder=2, label='Pases completados')
+                 width=3, headwidth=5, headlength=5, color="green", ax=ax, zorder=2, label='Pases completados')
 
     # Dibujar flechas para los pases fallidos
     pitch.arrows(unsuccessful_passes["x"], unsuccessful_passes["y"],
                  unsuccessful_passes["pass_end_x"], unsuccessful_passes["pass_end_y"],
-                 width=3, headwidth=6, headlength=5, color="red", ax=ax, zorder=2, label='Pases fallidos')
+                 width=3, headwidth=5, headlength=5, color="red", ax=ax, zorder=2, label='Pases fallidos')
 
     # Leyenda
-    ax.legend(facecolor='white', handlelength=5, edgecolor='black', fontsize=12, loc='upper left')
+    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=10, loc='upper left')
 
     # Título
     ax.set_title(f"Pases de {player}", fontsize=22, color='black')
 
     # Subtítulo
     ax.text(0.5, 0.975, "Vista detallada de pases completados y fallidos",
-            transform=ax.transAxes, ha='center', fontsize=11, color='grey')
+            transform=ax.transAxes, ha='center', fontsize=10, color='grey')
 
     st.pyplot(fig)
 
@@ -188,9 +194,6 @@ def main():
         match_id = match_details["match_id"].values[0]
         match_lineups = all_lineups[all_lineups["match_id"] == match_id]
 
-        # Borrar el índice y reorganizar (no hace nada)
-        match_lineups.reset_index(drop=True, inplace=True)
-
         # Obtener los nombres de los equipos en el partido
         home_team = match_details["home_team"].values[0]
         away_team = match_details["away_team"].values[0]
@@ -199,16 +202,38 @@ def main():
         home_team_lineup = match_lineups[match_lineups["country"] == home_team].sort_values(by="jersey_number")
         away_team_lineup = match_lineups[match_lineups["country"] == away_team].sort_values(by="jersey_number")
 
+        # Jugadores que salieron de inicio
+        home_team_starting = home_team_lineup[
+            home_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+
+        away_team_starting = away_team_lineup[
+            away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+
+        # Jugadores restantes
+        # El símbolo ~ es un operador de negación en Pandas 
+        home_team_subs = home_team_lineup[~home_team_lineup.index.isin(home_team_starting.index)].reset_index(drop=True)
+        away_team_subs = away_team_lineup[~away_team_lineup.index.isin(away_team_starting.index)].reset_index(drop=True)
+
         # Mostrar en columnas
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader(f"{home_team}")
-            st.write(home_team_lineup[["jersey_number", "player_name"]])
+            st.subheader(f"{home_team} - Titulares")
+            st.write(home_team_starting[["jersey_number", "player_name"]])
+
+            st.divider()
+
+            st.subheader(f"Suplentes")
+            st.write(home_team_subs[["jersey_number", "player_name"]])
 
         with col2:
-            st.subheader(f"{away_team}")
-            st.write(away_team_lineup[["jersey_number", "player_name"]])
+            st.subheader(f"{away_team} - Titulares")
+            st.write(away_team_starting[["jersey_number", "player_name"]])
+
+            st.divider()
+
+            st.subheader(f"Suplentes")
+            st.write(away_team_subs[["jersey_number", "player_name"]])
 
     
     # Tercera pestaña
@@ -264,26 +289,30 @@ def main():
 
     # Cuarta pestaña
     with pass_map_tab:
-        
-        # Filtrar jugadores que hayan jugado al menos un minuto
-        home_team_played = home_team_lineup[
-            home_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))
-        ]
 
+        home_team_played = home_team_lineup[
+            home_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+        ]
+        
         away_team_played = away_team_lineup[
-            away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))
-        ]           
+            away_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+        ]   
 
         col1, col2 = st.columns(2)
 
         with col1:
             local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist())
-            
+            st.write("")
+            st.write("")
+
             # Mostrar el mapa de pases del jugador local seleccionado
             passMap(local_player_selected, home_team_played["match_id"].iloc[0])
 
         with col2:
             away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist())
+            st.write("")
+            st.write("")
+            
             passMap(away_player_selected, away_team_played["match_id"].iloc[0])
             # Mostrar el mapa de pases del jugador visitante seleccionadp
 

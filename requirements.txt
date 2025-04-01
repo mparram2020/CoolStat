@@ -8,4 +8,5 @@ plotly
 requests
 seaborn
 scikit-learn
+scipy
 streamlit

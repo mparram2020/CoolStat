@@ -3,12 +3,13 @@ import pandas as pd
 import numpy as np
 from matplotlib.patches import Arc
 import matplotlib.pyplot as plt
-from scipy.stats import kde
+from mplsoccer import Pitch
+from scipy.stats import gaussian_kde
 import requests
 import os
 
 # Configuración de la página
-st.set_page_config(page_title="CoolStat", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="CoolStat", page_icon="logo.png", layout="wide")
 
 # Cargar datos
 @st.cache_data
@@ -34,6 +35,13 @@ def lineups():
         st.error("Error al cargar los datos: {e}")
         st.stop()
 
+@st.cache_data
+def load_events():
+    try:
+        return pd.read_csv("data/all_matches.csv")
+    except FileNotFoundError as e:
+        st.error(f"Error al cargar los eventos: {e}")
+        st.stop()
 
 # Menú lateral
 with st.sidebar.header("🏆 Campeonatos de fútbol"):
@@ -67,19 +75,78 @@ with st.sidebar.header("🏆 Campeonatos de fútbol"):
     # Ver partidos del equipo seleccionado
     df_selected_match = st.sidebar.selectbox("Selecciona un partido", team_matches["match_teams"].unique())
     match_details = team_matches[team_matches["match_teams"] == df_selected_match]
+
+
+def filter_passes(player, match_id):
+    all_events_df = load_events()
     
+    # Filtrar eventos de tipo "Pass"
+    passes = all_events_df[(all_events_df["type"] == "Pass") & (all_events_df["match_id"] == match_id)]
+
+    # Convertir 'location' y 'pass_end_location' a listas si vienen como string
+    passes['location'] = passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+    passes['pass_end_location'] = passes['pass_end_location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+
+    # Filtrar filas con valores válidos en 'location' y 'pass_end_location'
+    passes = passes[passes['location'].notnull() & passes['pass_end_location'].notnull()]
+
+    # Separar coordenadas
+    passes[['x', 'y']] = pd.DataFrame(passes['location'].tolist(), index=passes.index)
+    passes[['pass_end_x', 'pass_end_y']] = pd.DataFrame(passes['pass_end_location'].tolist(), index=passes.index)
+
+    # Filtrar los pases del jugador
+    player_passes = passes[passes["player"] == player]
+
+    # Dividir en exitosos y fallidos
+    successful_passes = player_passes[player_passes["pass_outcome"].isnull()]  # Exitosos no tienen "outcome"
+    unsuccessful_passes = player_passes[player_passes["pass_outcome"].notnull()]  # Fallidos sí tienen "outcome"
+
+    return successful_passes, unsuccessful_passes
+
+
+
+def passMap(player, match_id):
+    # Obtener los pases del jugador
+    successful_passes, unsuccessful_passes = filter_passes(player, match_id)
+
+    # Dibujar el campo de fútbol
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black', line_zorder=2)
+    fig, ax = pitch.draw(figsize=(16, 11), constrained_layout=True, tight_layout=False)
+    fig.set_facecolor('white')
+
+    # Dibujar flechas para los pases exitosos
+    pitch.arrows(successful_passes["x"], successful_passes["y"],
+                 successful_passes["pass_end_x"], successful_passes["pass_end_y"],
+                 width=3, headwidth=6, headlength=5, color="green", ax=ax, zorder=2, label='Pases completados')
+
+    # Dibujar flechas para los pases fallidos
+    pitch.arrows(unsuccessful_passes["x"], unsuccessful_passes["y"],
+                 unsuccessful_passes["pass_end_x"], unsuccessful_passes["pass_end_y"],
+                 width=3, headwidth=6, headlength=5, color="red", ax=ax, zorder=2, label='Pases fallidos')
+
+    # Leyenda
+    ax.legend(facecolor='white', handlelength=5, edgecolor='black', fontsize=12, loc='upper left')
+
+    # Título
+    ax.set_title(f"Pases de {player}", fontsize=22, color='black')
+
+    # Subtítulo
+    ax.text(0.5, 0.975, "Vista detallada de pases completados y fallidos",
+            transform=ax.transAxes, ha='center', fontsize=11, color='grey')
+
+    st.pyplot(fig)
 
 def main():
     st.title("⚽ CoolStat Streamlit App")
+    
     st.markdown("##### Página web interactiva para visualizar datos de partidos de la Eurocopa y la Copa América")
 
     st.subheader(f"📊 Estadísticas de la {selected_competition}")
-    "\n"
 
-    match_report, data_tab, heatmap_tab, passing_network_tab = st.tabs(['Informe del partido', 
+    match_report, data_tab, heatmap_tab, pass_map_tab = st.tabs(['Informe del partido', 
                                                          'Alineaciones',
                                                          'Mapa de calor',
-                                                         'Red de pases',])
+                                                         'Mapa de pases',])
 
     # Primera pestaña
     with match_report:
@@ -95,7 +162,7 @@ def main():
             
         with col2:
             # st.markdown("Resultado")
-            st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
             
         with col3:
             # st.markdown("Visitante")
@@ -143,6 +210,7 @@ def main():
             st.subheader(f"{away_team}")
             st.write(away_team_lineup[["jersey_number", "player_name"]])
 
+    
     # Tercera pestaña
     with heatmap_tab:
         st.subheader("Mapa de calor")
@@ -178,7 +246,7 @@ def main():
         y = np.random.normal(40, 15, 100)
         
         # Create kernel density estimate
-        k = kde.gaussian_kde([x, y])
+        k = gaussian_kde([x, y])
         xi, yi = np.mgrid[0:120:100j, 0:80:100j]
         zi = k(np.vstack([xi.flatten(), yi.flatten()]))
         
@@ -195,8 +263,30 @@ def main():
         st.pyplot(fig)
 
     # Cuarta pestaña
-    with passing_network_tab:
-        st.write("Red de pases")
+    with pass_map_tab:
+        
+        # Filtrar jugadores que hayan jugado al menos un minuto
+        home_team_played = home_team_lineup[
+            home_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))
+        ]
+
+        away_team_played = away_team_lineup[
+            away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))
+        ]           
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist())
+            
+            # Mostrar el mapa de pases del jugador local seleccionado
+            passMap(local_player_selected, home_team_played["match_id"].iloc[0])
+
+        with col2:
+            away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist())
+            passMap(away_player_selected, away_team_played["match_id"].iloc[0])
+            # Mostrar el mapa de pases del jugador visitante seleccionadp
+
 
     # st.divider()
     with st.expander('ℹ️ Disclaimer & Info'):

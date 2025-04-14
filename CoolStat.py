@@ -1,12 +1,15 @@
+import json
 import streamlit as st
 import pandas as pd
 import numpy as np
 from matplotlib.patches import Arc
 import matplotlib.pyplot as plt
-from mplsoccer import Pitch
+from mplsoccer import Pitch, VerticalPitch
 from scipy.stats import gaussian_kde
 import requests
 import os
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Configuración de la página
 st.set_page_config(page_title="CoolStat", page_icon="logo.png", layout="wide")
@@ -110,37 +113,95 @@ def filter_passes(player, match_id):
     return successful_passes, unsuccessful_passes
 
 
+def filter_shots(player, match_id):
+    euro_all_events_df, copa_america_all_events_df = load_events()
+    
+    # Combinar DataFrames de eventos
+    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+    
+    # Filtrar eventos de tipo "Shot"
+    shots = all_events_df[(all_events_df["type"] == "Shot")].reset_index(drop=True)
+
+    shots['location'] = shots['location'].apply(json.loads)
+    
+    # Filtrar los tiros del jugador
+    player_shots = shots[shots["player"] == player]
+    
+    return player_shots
+
 
 def passMap(player, match_id):
     # Obtener los pases del jugador
     successful_passes, unsuccessful_passes = filter_passes(player, match_id)
 
     # Dibujar el campo de fútbol
-    pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black', line_zorder=2)
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='white')
     fig, ax = pitch.draw(figsize=(14, 9), constrained_layout=True, tight_layout=False)
     fig.set_facecolor('white')
 
     # Dibujar flechas para los pases exitosos
     pitch.arrows(successful_passes["x"], successful_passes["y"],
                  successful_passes["pass_end_x"], successful_passes["pass_end_y"],
-                 width=3, headwidth=5, headlength=5, color="green", ax=ax, zorder=2, label='Pases completados')
+                 width=3, headwidth=5, headlength=5, color="green", ax=ax, label='Pases completados')
 
     # Dibujar flechas para los pases fallidos
     pitch.arrows(unsuccessful_passes["x"], unsuccessful_passes["y"],
                  unsuccessful_passes["pass_end_x"], unsuccessful_passes["pass_end_y"],
-                 width=3, headwidth=5, headlength=5, color="red", ax=ax, zorder=2, label='Pases fallidos')
+                 width=3, headwidth=5, headlength=5, color="red", ax=ax, label='Pases fallidos')
 
     # Leyenda
-    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=10, loc='upper left')
+    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
 
     # Título
     ax.set_title(f"Pases de {player}", fontsize=22, color='black')
 
     # Subtítulo
     ax.text(0.5, 0.975, "Vista detallada de pases completados y fallidos",
-            transform=ax.transAxes, ha='center', fontsize=10, color='grey')
+            transform=ax.transAxes, ha='center', fontsize=12, color='grey')
 
     st.pyplot(fig)
+
+
+def shot_map(player, match_id):
+    # Cargar los eventos del partido seleccionado
+    euro_all_events_df, copa_america_all_events_df = load_events()
+    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+
+    # Filtrar eventos del partido seleccionado
+    match_events = all_events_df[all_events_df["match_id"] == match_id]
+
+    # Filtrar tiros
+    shots = match_events[match_events["type"] == "Shot"].reset_index(drop=True)
+
+    # Convertir 'location' a listas si vienen como string
+    shots['location'] = shots['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+
+    # Filtrar por jugador
+    if player:
+        shots = shots[shots['player'] == player]
+
+    # Crear el campo de fútbol en orientación vertical
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='white', half=True)
+    fig, ax = pitch.draw(figsize=(9, 9), constrained_layout=True, tight_layout=False)
+
+    # Dibujar los tiros
+    for shot in shots.to_dict(orient='records'):
+        pitch.scatter(
+            x=float(shot['location'][0]),
+            y=float(shot['location'][1]),
+            ax=ax,
+            s=2500 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
+            color='green' if shot['shot_outcome'] == 'Goal' else 'red',  # Verde si es gol, cruz roja si no
+            edgecolors='black',
+            alpha=1 if shot['shot_outcome'] == 'Goal' else 0.5,  # Opacidad mayor si es gol
+            zorder=2 if shot['shot_outcome'] == 'Goal' else 1  # Z-order para superposición
+        )
+
+    ax.set_title(f"Tiros de {player}", fontsize=18, color='black')
+
+    # Mostrar el gráfico
+    st.pyplot(fig)
+
 
 def main():
     st.title("⚽ CoolStat Streamlit App")
@@ -149,29 +210,35 @@ def main():
 
     st.subheader(f"📊 Estadísticas de la {selected_competition}")
 
-    match_report, data_tab, heatmap_tab, pass_map_tab = st.tabs(['Informe del partido', 
-                                                         'Alineaciones',
-                                                         'Mapa de calor',
-                                                         'Mapa de pases',])
+    # Obtener los eventos del partido seleccionado
+    euro_all_events_df, copa_america_all_events_df = load_events()
+    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+
+    # Filtrar eventos del partido seleccionado
+    match_id = match_details["match_id"].values[0]
+    match_events = all_events_df[all_events_df["match_id"] == match_id]
+
+    match_report, data_tab, heatmap_tab, pass_map_tab, shot_map_tab = st.tabs(['Informe del partido', 
+                                                                                'Alineaciones',
+                                                                                'Mapa de calor',
+                                                                                'Mapa de pases',
+                                                                                'Mapa de tiros'])
 
     # Primera pestaña
     with match_report:
-        # st.write(f"Partidos de {selected_team}:")
-        # st.header(f"📊 Informe del partido: {match_details['home_team'].values[0]} vs {match_details['away_team'].values[0]}")
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-        # st.write(team_matches)
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            # st.markdown("Local")
+            # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
             
         with col2:
-            # st.markdown("Resultado")
+            # Resultado
             st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
             
         with col3:
-            # st.markdown("Visitante")
+            # Visitante
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]["away_team"]}</h4>", unsafe_allow_html=True)
 
         # Separador
@@ -211,81 +278,75 @@ def main():
 
         # Jugadores restantes
         # El símbolo ~ es un operador de negación en Pandas 
-        home_team_subs = home_team_lineup[~home_team_lineup.index.isin(home_team_starting.index)].reset_index(drop=True)
-        away_team_subs = away_team_lineup[~away_team_lineup.index.isin(away_team_starting.index)].reset_index(drop=True)
+        home_team_subs = home_team_lineup[
+            home_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+        
+        away_team_subs = away_team_lineup[
+            away_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
 
         # Mostrar en columnas
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader(f"{home_team} - Titulares")
+            st.html(f"<h2 style='text-align: center;'>{home_team}</h2>")
+            st.write("Titulares")
             st.write(home_team_starting[["jersey_number", "player_name"]])
 
             st.divider()
 
-            st.subheader(f"Suplentes")
+            st.write("Suplentes")
             st.write(home_team_subs[["jersey_number", "player_name"]])
 
         with col2:
-            st.subheader(f"{away_team} - Titulares")
+            st.html(f"<h2 style='text-align: center;'>{away_team}</h2>")
+            st.write("Titulares")
             st.write(away_team_starting[["jersey_number", "player_name"]])
 
             st.divider()
 
-            st.subheader(f"Suplentes")
+            st.write("Suplentes")
             st.write(away_team_subs[["jersey_number", "player_name"]])
 
     
     # Tercera pestaña
     with heatmap_tab:
-        st.subheader("Mapa de calor")
+        st.subheader("Mapa de calor de pases")
         
-        # Placeholder for heatmap data - you'll need to load/process this
-        if 'events' not in st.session_state:
-            st.session_state.events = {}  # Add your event data processing here
-        
-        # Select player for heatmap
+        # Seleccionar equipo para el mapa de calor
         selected_team_for_heatmap = st.radio("Seleccionar equipo:", [home_team, away_team])
         
-        # Get players for selected team
-        players_df = home_team_lineup if selected_team_for_heatmap == home_team else away_team_lineup
-        selected_player = st.selectbox("Seleccionar jugador:", players_df["player_name"].tolist())
+        # Filtrar pases del equipo seleccionado
+        team_passes = match_events[
+            (match_events["type"] == "Pass") & 
+            (match_events["team"] == selected_team_for_heatmap)
+        ]
         
-        # Create heatmap (placeholder)
-        fig, ax = plt.subplots(figsize=(10, 7))
+        # Convertir 'location' a listas si vienen como string
+        team_passes.loc[:, 'location'] = team_passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
         
-        # Draw football pitch (simplified)
-        ax.set_xlim(0, 120)
-        ax.set_ylim(0, 80)
+        # Filtrar filas con valores válidos en 'location'
+        team_passes = team_passes[team_passes['location'].notnull()]
         
-        # Draw pitch lines
-        ax.plot([0, 0, 120, 120, 0], [0, 80, 80, 0, 0], 'black')
-        ax.plot([60, 60], [0, 80], 'black')  # Half-way line
+        # Separar coordenadas
+        team_passes[['x', 'y']] = pd.DataFrame(team_passes['location'].tolist(), index=team_passes.index)
         
-        # Draw center circle
-        center_circle = plt.Circle((60, 40), 9.15, fill=False, color='black')
-        ax.add_patch(center_circle)
+        # Crear el mapa de calor
+        fig, ax = plt.subplots(figsize=(10, 6))
         
-        # Example data points (replace with actual player positions)
-        x = np.random.normal(60, 20, 100)
-        y = np.random.normal(40, 15, 100)
+        # Dibujar el campo de fútbol
+        pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')
+        pitch.draw(ax=ax)
         
-        # Create kernel density estimate
-        k = gaussian_kde([x, y])
+        # Crear kernel density estimate para los pases
+        kde = gaussian_kde([team_passes['x'], team_passes['y']])
         xi, yi = np.mgrid[0:120:100j, 0:80:100j]
-        zi = k(np.vstack([xi.flatten(), yi.flatten()]))
+        zi = kde(np.vstack([xi.flatten(), yi.flatten()]))
         
-        # Plot heatmap
-        ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.7)
-        
-        ax.set_aspect('equal')
-        ax.set_title(f"{selected_player}")
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        # No mostrar los ejes
-        ax.axis('off')
+        # Dibujar el mapa de calor
+        ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.6)
         
         st.pyplot(fig)
+
 
     # Cuarta pestaña
     with pass_map_tab:
@@ -313,8 +374,35 @@ def main():
             st.write("")
             st.write("")
             
+            # Mostrar el mapa de pases del jugador visitante seleccionado
             passMap(away_player_selected, away_team_played["match_id"].iloc[0])
-            # Mostrar el mapa de pases del jugador visitante seleccionadp
+            
+
+    # Quinta pestaña
+    with shot_map_tab:
+        home_team_played = home_team_lineup[
+            home_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+        ]
+        
+        away_team_played = away_team_lineup[
+            away_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+        ]   
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist(), key="local_shot_player")
+            st.write("")
+            st.write("")
+            shot_map(local_player_selected, home_team_played["match_id"].iloc[0])
+    
+        with col2:
+            away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist(), key="away_shot_player")
+            st.write("")
+            st.write("")
+            shot_map(away_player_selected, away_team_played["match_id"].iloc[0])
+
+
 
 
     # st.divider()

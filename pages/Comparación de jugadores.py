@@ -19,7 +19,7 @@ fig.update_layout(
 )
 
 # Interfaz en Streamlit
-st.title("📊 Radar Chart de Mediocampista")
+st.title("📊 Comparación de jugadores")
 st.write("Introduce el nombre del jugador y visualiza sus estadísticas.")
-player_name = st.text_input("Nombre del mediocampista", "Ejemplo")
+player_name = st.text_input("Nombre del jugador", "Ejemplo")
 st.plotly_chart(fig)

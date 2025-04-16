@@ -181,8 +181,8 @@ def shot_map(player, match_id):
         shots = shots[shots['player'] == player]
 
     # Crear el campo de fútbol en orientación vertical
-    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='white', half=True)
-    fig, ax = pitch.draw(figsize=(9, 9), constrained_layout=True, tight_layout=False)
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True)
+    fig, ax = pitch.draw(figsize=(8, 8), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
     for shot in shots.to_dict(orient='records'):
@@ -197,7 +197,7 @@ def shot_map(player, match_id):
             zorder=2 if shot['shot_outcome'] == 'Goal' else 1  # Z-order para superposición
         )
 
-    ax.set_title(f"Tiros de {player}", fontsize=18, color='black')
+    ax.set_title(f"Tiros de {player}", fontsize=16, color='black')
 
     # Mostrar el gráfico
     st.pyplot(fig)
@@ -288,24 +288,29 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            st.html(f"<h2 style='text-align: center;'>{home_team}</h2>")
-            st.write("Titulares")
-            st.write(home_team_starting[["jersey_number", "player_name"]])
+            #st.image("")
+            st.write("")
+            st.markdown(f"**Titulares de {home_team}**")
+            df = home_team_starting[["jersey_number", "player_name"]]
+            st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.write("Suplentes")
-            st.write(home_team_subs[["jersey_number", "player_name"]])
+            st.markdown("**Suplentes**")
+            df = home_team_subs[["jersey_number", "player_name"]]
+            st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
         with col2:
-            st.html(f"<h2 style='text-align: center;'>{away_team}</h2>")
-            st.write("Titulares")
-            st.write(away_team_starting[["jersey_number", "player_name"]])
+            st.write("")
+            st.markdown(f"**Titulares de {away_team}**")
+            df = away_team_starting[["jersey_number", "player_name"]]
+            st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.write("Suplentes")
-            st.write(away_team_subs[["jersey_number", "player_name"]])
+            st.markdown("**Suplentes**")
+            df = away_team_subs[["jersey_number", "player_name"]]
+            st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
     
     # Tercera pestaña

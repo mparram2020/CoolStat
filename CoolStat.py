@@ -3,7 +3,7 @@ from matplotlib.lines import Line2D
 import streamlit as st
 import pandas as pd
 import numpy as np
-from matplotlib.patches import Arc
+from matplotlib.patches import Arc, Rectangle
 import matplotlib.pyplot as plt
 from mplsoccer import Pitch, VerticalPitch
 from scipy.stats import gaussian_kde
@@ -181,7 +181,7 @@ def shot_map(team, match_id):
             s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
             color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
             edgecolors='black',
-            alpha=1 if is_goal else 0.5,  # Opacidad mayor si es gol
+            alpha=1 if is_goal else 0.6,  # Opacidad mayor si es gol
             marker='o' if is_goal else 'x',  # Marcador diferente para goles y no goles
             linewidth=2 if not is_goal else 1,
             zorder=1 if is_goal else 1  # Z-order para superposición
@@ -199,12 +199,16 @@ def shot_map(team, match_id):
 
     ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
 
-    ax.set_title(f"Tiros de {team}", x=0.5, y=1.07, fontsize=16, color='black')
-    # ax.text(x=0.25, y=1.02, s='Menor xG', fontsize=12, color='black', ha='center', transform=ax.transAxes)
-    # ax.text(x=0.75, y=1.02, s='Mayor xG', fontsize=12, color='black', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
-    
-    # ax.scatter(x=0.37, y=0.53, s=100, color='black', edgecolor='white', linewidth=.8)
+    ax.set_title(f"Tiros de {team}", x=0.5, y=1.03, fontsize=16, color='black')
+    ax.text(x=0.25, y=0.96, s='Menor xG', fontsize=10, color='black', ha='center', transform=ax.transAxes)
+    ax.text(x=0.75, y=0.96, s='Mayor xG', fontsize=10, color='black', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
 
+    # Dibujar los círculos entre "Menor xG" y "Mayor xG"
+    circle_positions = [0.37, 0.46, 0.54, 0.63]  # Posiciones horizontales de los círculos
+    circle_sizes = [40, 90, 140, 190]  # Tamaños de los círculos
+    for pos, size in zip(circle_positions, circle_sizes):
+        ax.scatter(x=pos, y=0.97, s=size, facecolor='none', edgecolor='black', transform=ax.transAxes)
+    
     # Mostrar el gráfico
     st.pyplot(fig)
 

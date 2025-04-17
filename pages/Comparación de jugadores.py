@@ -5,6 +5,9 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics.pairwise import euclidean_distances
 
+
+categoria = st.pills("Selecciona una posición", ['Portero', 'Defensa', 'Centrocampista', 'Delantero'])
+
 # Simulación de un dataset de jugadores
 data = {
     "Player": ["Modric", "De Bruyne", "Pedri", "Kroos", "Bellingham", "Valverde", "Gundogan", "Camavinga"],

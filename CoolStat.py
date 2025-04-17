@@ -1,14 +1,10 @@
-import json
 from matplotlib.lines import Line2D
 import streamlit as st
 import pandas as pd
 import numpy as np
-from matplotlib.patches import Arc, Rectangle
 import matplotlib.pyplot as plt
 from mplsoccer import Pitch, VerticalPitch
 from scipy.stats import gaussian_kde
-import requests
-import os
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -52,7 +48,6 @@ def load_events():
 
 # Menú lateral
 with st.sidebar.header("🏆 Campeonatos de fútbol"):
-
     eurocopa, copa_america = load_data()
 
     # Renombrar competiciones
@@ -108,8 +103,8 @@ def filter_passes(player, match_id):
     player_passes = passes[passes["player"] == player]
 
     # Dividir en exitosos y fallidos
-    successful_passes = player_passes[player_passes["pass_outcome"].isnull()]  # Exitosos no tienen "outcome"
-    unsuccessful_passes = player_passes[player_passes["pass_outcome"].notnull()]  # Fallidos sí tienen "outcome"
+    successful_passes = player_passes[player_passes["pass_outcome"].isnull()]  # Exitosos tienen outcome "nan"
+    unsuccessful_passes = player_passes[player_passes["pass_outcome"].notnull()]  # Fallidos tienen outcome "Incomplete"
 
     return successful_passes, unsuccessful_passes
 
@@ -125,7 +120,7 @@ def filter_shots(team, match_id):
     # Filtrar tiros
     shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True)
 
-    # Convertir 'location' a listas si vienen como string
+    # Convertir 'location' a listas
     shots['location'] = shots['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
 
     return shots
@@ -154,7 +149,7 @@ def pass_map(player, match_id):
     ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
 
     # Título
-    ax.set_title(f"Pases de {player}", fontsize=22, color='black')
+    ax.set_title(f"Pases de {player}", x=0.5, y=1.03, fontsize=22, color='black')
 
     st.pyplot(fig)
 
@@ -163,20 +158,20 @@ def shot_map(team, match_id):
     # Obtener los tiros del equipo
     shots = filter_shots(team, match_id)
     if shots.empty:
-        st.warning(f"No se encontraron tiros para el equipo {team} en este partido.")
+        st.warning(f"No hubo tiros de {team} en este partido.")
         return
 
     # Crear el campo de fútbol en orientación vertical
     pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True)
-    fig, ax = pitch.draw(figsize=(8, 8), constrained_layout=True, tight_layout=False)
+    fig, ax = pitch.draw(figsize=(10, 10), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
     for shot in shots.to_dict(orient='records'):
         is_goal = shot['shot_outcome'] == 'Goal'
 
         pitch.scatter(
-            x=float(shot['location'][0]),
-            y=float(shot['location'][1]),
+            x=shot['location'][0],
+            y=shot['location'][1],
             ax=ax,
             s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
             color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
@@ -187,27 +182,26 @@ def shot_map(team, match_id):
             zorder=1 if is_goal else 1  # Z-order para superposición
         )
 
-
     # Leyenda
     legend_elements = [
         Line2D([0], [0], marker='o', color='w', label='Gol', markerfacecolor='green', markeredgecolor='black', markersize=10),
         Line2D([0], [0], marker='x', color='w', label='Fallo', markeredgecolor='red', markersize=10),
-        # Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=5),
-        # Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=10),
-        # Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=15),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=5),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=10),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=15),
     ]
 
     ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
 
     ax.set_title(f"Tiros de {team}", x=0.5, y=1.03, fontsize=16, color='black')
-    ax.text(x=0.25, y=0.96, s='Menor xG', fontsize=10, color='black', ha='center', transform=ax.transAxes)
-    ax.text(x=0.75, y=0.96, s='Mayor xG', fontsize=10, color='black', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
+    ax.text(x=0.3, y=0.96, s='Menor xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)
+    ax.text(x=0.7, y=0.96, s='Mayor xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
 
-    # Dibujar los círculos entre "Menor xG" y "Mayor xG"
-    circle_positions = [0.37, 0.46, 0.54, 0.63]  # Posiciones horizontales de los círculos
-    circle_sizes = [40, 90, 140, 190]  # Tamaños de los círculos
+    # Círculos entre "Menor xG" y "Mayor xG"
+    circle_positions = [0.38, 0.46, 0.54, 0.62]  # Posiciones horizontales
+    circle_sizes = [40, 90, 140, 190]
     for pos, size in zip(circle_positions, circle_sizes):
-        ax.scatter(x=pos, y=0.97, s=size, facecolor='none', edgecolor='black', transform=ax.transAxes)
+        ax.scatter(x=pos, y=0.97, s=size, facecolor='none', edgecolor='white', transform=ax.transAxes)
     
     # Mostrar el gráfico
     st.pyplot(fig)
@@ -238,26 +232,34 @@ def main():
     with match_report:
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns(3)
+        # La cuarta y quinta columnas tienen que ser más pequeñas
+        col1, col2, col3, col4, col5 = st.columns([0.8, 0.4, 0.8, 0.4, 0.8])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
-            
+        
         with col2:
+            st.image(f"img/{match_details.iloc[0]['home_team']}.jpg", width=80)
+        
+        with col3:
             # Resultado
             st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
             
-        with col3:
+    
+        with col4:
+            st.image(f"img/{match_details.iloc[0]['away_team']}.jpg", width=80)
+
+        with col5:
             # Visitante
-            st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]["away_team"]}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['away_team']}</h4>", unsafe_allow_html=True)
 
         # Separador
         st.divider()
 
-        st.write("🧍Entrenador local: ", match_details.iloc[0]["home_managers"])
-        st.write("🧍Entrenador visitante: ", match_details.iloc[0]["away_managers"])
-        formated_date = pd.to_datetime(match_details.iloc[0]["match_date"]).strftime("%d/%m/%Y")
-        st.write("📅 Fecha: ", formated_date)
+        st.write("🧍 Entrenador local: ", match_details.iloc[0]["home_managers"])
+        st.write("🧍 Entrenador visitante: ", match_details.iloc[0]["away_managers"])
+        formatted_date = pd.to_datetime(match_details.iloc[0]["match_date"]).strftime("%d/%m/%Y")
+        st.write("📅 Fecha: ", formatted_date)
         st.write("📣 Árbitro: ", match_details.iloc[0]["referee"])
         st.write("🏟️ Estadio: ", match_details.iloc[0]["stadium"])
         
@@ -404,21 +406,19 @@ def main():
 
         with col1:
             st.write("")
-            st.write("")
             shot_map(home_team, home_team_played["match_id"].iloc[0])
     
         with col2:
-            st.write("")
             st.write("")
             shot_map(away_team, away_team_played["match_id"].iloc[0])
 
 
     # st.divider()
-    with st.expander('ℹ️ Disclaimer & Info'):
-        st.write('''
-       - Todos los datos en esta app provienen del repositorio de datos abiertos de StatsBomb.
-       - Esta app es solo para fines educativos.
-    ''')
+    #with st.expander('ℹ️ Disclaimer & Info'):
+    #    st.write('''
+    #   - Todos los datos en esta app provienen del repositorio de datos abiertos de StatsBomb.
+    #   - Esta app es solo para fines educativos.
+    #''')
 
 
 if __name__ == "__main__":

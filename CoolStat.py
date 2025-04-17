@@ -1,4 +1,5 @@
 import json
+from matplotlib.lines import Line2D
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -113,24 +114,24 @@ def filter_passes(player, match_id):
     return successful_passes, unsuccessful_passes
 
 
-def filter_shots(player, match_id):
+def filter_shots(team, match_id):
+    # Cargar los eventos del partido seleccionado
     euro_all_events_df, copa_america_all_events_df = load_events()
-    
-    # Combinar DataFrames de eventos
     all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
-    
-    # Filtrar eventos de tipo "Shot"
-    shots = all_events_df[(all_events_df["type"] == "Shot")].reset_index(drop=True)
 
-    shots['location'] = shots['location'].apply(json.loads)
-    
-    # Filtrar los tiros del jugador
-    player_shots = shots[shots["player"] == player]
-    
-    return player_shots
+    # Filtrar eventos del partido seleccionado
+    match_events = all_events_df[all_events_df["match_id"] == match_id]
+
+    # Filtrar tiros
+    shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True)
+
+    # Convertir 'location' a listas si vienen como string
+    shots['location'] = shots['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+
+    return shots
 
 
-def passMap(player, match_id):
+def pass_map(player, match_id):
     # Obtener los pases del jugador
     successful_passes, unsuccessful_passes = filter_passes(player, match_id)
 
@@ -155,30 +156,15 @@ def passMap(player, match_id):
     # Título
     ax.set_title(f"Pases de {player}", fontsize=22, color='black')
 
-    # Subtítulo
-    ax.text(0.5, 0.975, "Vista detallada de pases completados y fallidos",
-            transform=ax.transAxes, ha='center', fontsize=12, color='grey')
-
     st.pyplot(fig)
 
 
-def shot_map(player, match_id):
-    # Cargar los eventos del partido seleccionado
-    euro_all_events_df, copa_america_all_events_df = load_events()
-    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
-
-    # Filtrar eventos del partido seleccionado
-    match_events = all_events_df[all_events_df["match_id"] == match_id]
-
-    # Filtrar tiros
-    shots = match_events[match_events["type"] == "Shot"].reset_index(drop=True)
-
-    # Convertir 'location' a listas si vienen como string
-    shots['location'] = shots['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
-
-    # Filtrar por jugador
-    if player:
-        shots = shots[shots['player'] == player]
+def shot_map(team, match_id):
+    # Obtener los tiros del equipo
+    shots = filter_shots(team, match_id)
+    if shots.empty:
+        st.warning(f"No se encontraron tiros para el equipo {team} en este partido.")
+        return
 
     # Crear el campo de fútbol en orientación vertical
     pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True)
@@ -186,18 +172,38 @@ def shot_map(player, match_id):
 
     # Dibujar los tiros
     for shot in shots.to_dict(orient='records'):
+        is_goal = shot['shot_outcome'] == 'Goal'
+
         pitch.scatter(
             x=float(shot['location'][0]),
             y=float(shot['location'][1]),
             ax=ax,
-            s=2500 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
-            color='green' if shot['shot_outcome'] == 'Goal' else 'red',  # Verde si es gol, cruz roja si no
+            s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
+            color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
             edgecolors='black',
-            alpha=1 if shot['shot_outcome'] == 'Goal' else 0.5,  # Opacidad mayor si es gol
-            zorder=2 if shot['shot_outcome'] == 'Goal' else 1  # Z-order para superposición
+            alpha=1 if is_goal else 0.5,  # Opacidad mayor si es gol
+            marker='o' if is_goal else 'x',  # Marcador diferente para goles y no goles
+            linewidth=2 if not is_goal else 1,
+            zorder=1 if is_goal else 1  # Z-order para superposición
         )
 
-    ax.set_title(f"Tiros de {player}", fontsize=16, color='black')
+
+    # Leyenda
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', label='Gol', markerfacecolor='green', markeredgecolor='black', markersize=10),
+        Line2D([0], [0], marker='x', color='w', label='Fallo', markeredgecolor='red', markersize=10),
+        # Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=5),
+        # Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=10),
+        # Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=15),
+    ]
+
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
+
+    ax.set_title(f"Tiros de {team}", x=0.5, y=1.07, fontsize=16, color='black')
+    # ax.text(x=0.25, y=1.02, s='Menor xG', fontsize=12, color='black', ha='center', transform=ax.transAxes)
+    # ax.text(x=0.75, y=1.02, s='Mayor xG', fontsize=12, color='black', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
+    
+    # ax.scatter(x=0.37, y=0.53, s=100, color='black', edgecolor='white', linewidth=.8)
 
     # Mostrar el gráfico
     st.pyplot(fig)
@@ -246,7 +252,8 @@ def main():
 
         st.write("🧍Entrenador local: ", match_details.iloc[0]["home_managers"])
         st.write("🧍Entrenador visitante: ", match_details.iloc[0]["away_managers"])
-        st.write("📅 Fecha: ", match_details.iloc[0]["match_date"])
+        formated_date = pd.to_datetime(match_details.iloc[0]["match_date"]).strftime("%d/%m/%Y")
+        st.write("📅 Fecha: ", formated_date)
         st.write("📣 Árbitro: ", match_details.iloc[0]["referee"])
         st.write("🏟️ Estadio: ", match_details.iloc[0]["stadium"])
         
@@ -290,33 +297,31 @@ def main():
         with col1:
             #st.image("")
             st.write("")
-            st.markdown(f"**Titulares de {home_team}**")
+            st.markdown(f"<h4>Titulares de {home_team}</h4>", unsafe_allow_html=True)
             df = home_team_starting[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.markdown("**Suplentes**")
+            st.markdown("<h4>Suplentes</h4>", unsafe_allow_html=True)
             df = home_team_subs[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
         with col2:
             st.write("")
-            st.markdown(f"**Titulares de {away_team}**")
+            st.markdown(f"<h4>Titulares de {away_team}</h4>", unsafe_allow_html=True)
             df = away_team_starting[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.markdown("**Suplentes**")
+            st.markdown("<h4>Suplentes</h4>", unsafe_allow_html=True)
             df = away_team_subs[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
     
     # Tercera pestaña
     with heatmap_tab:
-        st.subheader("Mapa de calor de pases")
-        
         # Seleccionar equipo para el mapa de calor
         selected_team_for_heatmap = st.radio("Seleccionar equipo:", [home_team, away_team])
         
@@ -342,7 +347,7 @@ def main():
         pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')
         pitch.draw(ax=ax)
         
-        # Crear kernel density estimate para los pases
+        # Crear kernel density estimation para los pases
         kde = gaussian_kde([team_passes['x'], team_passes['y']])
         xi, yi = np.mgrid[0:120:100j, 0:80:100j]
         zi = kde(np.vstack([xi.flatten(), yi.flatten()]))
@@ -369,18 +374,16 @@ def main():
         with col1:
             local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist())
             st.write("")
-            st.write("")
 
             # Mostrar el mapa de pases del jugador local seleccionado
-            passMap(local_player_selected, home_team_played["match_id"].iloc[0])
+            pass_map(local_player_selected, home_team_played["match_id"].iloc[0])
 
         with col2:
             away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist())
             st.write("")
-            st.write("")
             
             # Mostrar el mapa de pases del jugador visitante seleccionado
-            passMap(away_player_selected, away_team_played["match_id"].iloc[0])
+            pass_map(away_player_selected, away_team_played["match_id"].iloc[0])
             
 
     # Quinta pestaña
@@ -396,18 +399,14 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist(), key="local_shot_player")
             st.write("")
             st.write("")
-            shot_map(local_player_selected, home_team_played["match_id"].iloc[0])
+            shot_map(home_team, home_team_played["match_id"].iloc[0])
     
         with col2:
-            away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist(), key="away_shot_player")
             st.write("")
             st.write("")
-            shot_map(away_player_selected, away_team_played["match_id"].iloc[0])
-
-
+            shot_map(away_team, away_team_played["match_id"].iloc[0])
 
 
     # st.divider()

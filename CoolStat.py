@@ -20,7 +20,7 @@ def load_data():
         return eurocopa, copa_america
     
     except FileNotFoundError as e:
-        st.error("Error al cargar los datos: {e}")
+        st.error(f"Error al cargar los datos: {e}")
         st.stop()
 
 # Cargar alineaciones
@@ -32,14 +32,14 @@ def lineups():
         return euro_lineups, copa_america_lineups
 
     except FileNotFoundError as e:
-        st.error("Error al cargar los datos: {e}")
+        st.error(f"Error al cargar los datos: {e}")
         st.stop()
 
 @st.cache_data
 def load_events():
     try:
-        euro_all_matches = pd.read_csv("data/euro_all_events.csv")
-        copa_america_all_matches = pd.read_csv("data/copa_america_all_events.csv")
+        euro_all_matches = pd.read_csv("data/euro_all_events.csv", low_memory=False)
+        copa_america_all_matches = pd.read_csv("data/copa_america_all_events.csv", low_memory=False)
         return euro_all_matches, copa_america_all_matches
     
     except FileNotFoundError as e:
@@ -149,7 +149,7 @@ def pass_map(player, match_id):
     ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
 
     # Título
-    ax.set_title(f"Pases de {player}", x=0.5, y=1.03, fontsize=22, color='black')
+    ax.set_title(f"Pases de {player}", x=0.5, y=1, fontsize=22, color='black')
 
     st.pyplot(fig)
 
@@ -173,13 +173,13 @@ def shot_map(team, match_id):
             x=shot['location'][0],
             y=shot['location'][1],
             ax=ax,
-            s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
+            s=1500 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
             color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
             edgecolors='black',
             alpha=1 if is_goal else 0.6,  # Opacidad mayor si es gol
             marker='o' if is_goal else 'x',  # Marcador diferente para goles y no goles
             linewidth=2 if not is_goal else 1,
-            zorder=1 if is_goal else 1  # Z-order para superposición
+            zorder=1 if is_goal else 1.5  # Z-order para superposición
         )
 
     # Leyenda
@@ -233,7 +233,7 @@ def main():
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 
         # La cuarta y quinta columnas tienen que ser más pequeñas
-        col1, col2, col3, col4, col5 = st.columns([0.8, 0.4, 0.8, 0.4, 0.8])
+        col1, col2, col3, col4, col5, col6 = st.columns([0.8, 0.5, 0.8, 0.1, 0.5, 0.8])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
@@ -246,10 +246,10 @@ def main():
             st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
             
     
-        with col4:
+        with col5:
             st.image(f"img/{match_details.iloc[0]['away_team']}.jpg", width=80)
 
-        with col5:
+        with col6:
             # Visitante
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['away_team']}</h4>", unsafe_allow_html=True)
 

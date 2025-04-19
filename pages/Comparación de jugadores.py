@@ -6,64 +6,80 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics.pairwise import euclidean_distances
 
 
-categoria = st.pills("Selecciona una posición", ['Portero', 'Defensa', 'Centrocampista', 'Delantero'])
+# Configuración de la página
+st.set_page_config(page_title="Comparación de jugadores", page_icon="logo.png", layout="wide")
 
-# Simulación de un dataset de jugadores
-data = {
-    "Player": ["Modric", "De Bruyne", "Pedri", "Kroos", "Bellingham", "Valverde", "Gundogan", "Camavinga"],
-    "Key Passes": [85, 90, 75, 80, 78, 70, 82, 68],
-    "Prog Passes": [78, 88, 70, 84, 76, 74, 83, 72],
-    "Duels%": [65, 55, 60, 58, 72, 76, 61, 74],
-    "Def Actions": [70, 60, 68, 66, 74, 79, 63, 75],
-    "Carrying": [80, 85, 77, 79, 83, 82, 78, 81],
-    "Fwd Passes": [90, 95, 85, 88, 86, 84, 89, 87],
-    "Fwd Pass%": [85, 90, 80, 83, 84, 82, 86, 81]
-}
-df_players = pd.DataFrame(data)
-categories = list(data.keys())[1:]
+@st.cache_data
+def load_data():
+    try:
+        euro_goalkeepers = pd.read_csv("data/euro_goalkeepers_stats.csv")
+        euro_players = pd.read_csv("data/euro_players_stats.csv")
+        return euro_goalkeepers, euro_players
 
-# Normalizamos para similitud
-scaler = MinMaxScaler()
-normalized_stats = scaler.fit_transform(df_players[categories])
-df_norm = pd.DataFrame(normalized_stats, columns=categories)
-df_norm["Player"] = df_players["Player"]
+    except FileNotFoundError as e:
+        st.error(f"Error al cargar los datos: {e}")
+        st.stop()
 
-# Interfaz Streamlit
 st.title("📊 Comparador de Jugadores + Sugerencias de Similares")
+st.write("Selecciona la posición de los jugadores a comparar:")
 
-col1, col2 = st.columns(2)
-with col1:
-    player1 = st.selectbox("Jugador 1", df_players["Player"], index=0)
-with col2:
-    player2 = st.selectbox("Jugador 2", df_players["Player"], index=1)
+# Cargar los datos
+euro_goalkeepers, euro_players = load_data()
+euro_stats = pd.concat([euro_goalkeepers, euro_players], ignore_index=True)
 
-# Extraer valores
-values1 = df_players[df_players["Player"] == player1][categories].values.flatten()
-values2 = df_players[df_players["Player"] == player2][categories].values.flatten()
+# Para porteros
+# Añadir una columna llamada GA90, en la que se divide los Goals Conceeded entre los 90s
+euro_stats['GA90'] = euro_stats['Goals Conceeded'] / euro_stats['90s']
 
-# Crear DataFrame para radar
-df_radar = pd.DataFrame({
-    "theta": categories,
-    player1: values1,
-    player2: values2
-})
+euro_stats['Touches per 90s'] = euro_stats['Touches'] / euro_stats['90s']
 
-# Plot con Plotly
-fig = px.line_polar(df_radar, r=player1, theta="theta", line_close=True, name=player1)
-fig.add_scatterpolar(r=values2, theta=categories, fill='toself', name=player2, line=dict(color='orange'))
-fig.update_traces(fill='toself')
-fig.update_layout(
-    polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-    showlegend=True
-)
-st.plotly_chart(fig)
+# Para jugadores de campo
+# Añadir una columna llamada G90, en la que se divide los Goals entre los 90s
+euro_stats['G90'] = euro_stats['Goals'] / euro_stats['90s']
 
-# Calcular jugadores similares al segundo
-selected_vector = df_norm[df_norm["Player"] == player2][categories].values
-distances = euclidean_distances(df_norm[categories], selected_vector).flatten()
-df_players["Distance"] = distances
-df_similar = df_players[df_players["Player"] != player2].sort_values("Distance").head(5)
 
-# Mostrar resultados
-st.subheader(f"🔍 Jugadores similares a {player2}")
-st.table(df_similar[["Player", "Distance"]])
+if 'posicion_seleccionada' not in st.session_state:
+    st.session_state.posicion_seleccionada = None
+
+# Definimos las posiciones
+posiciones = ["Portero", "Defensa", "Centrocampista", "Delantero"]
+
+# Botones para seleccionar la posición
+col1, col2, col3, col4 = st.columns(4)
+
+# Usa los botones para actualizar el estado de la sesión
+if col1.button("PORTERO", use_container_width=True):
+    st.session_state.posicion_seleccionada = "Portero"
+elif col2.button("DEFENSA", use_container_width=True):
+    st.session_state.posicion_seleccionada = "Defensa"
+elif col3.button("CENTROCAMPISTA", use_container_width=True):
+    st.session_state.posicion_seleccionada = "Centrocampista"
+elif col4.button("DELANTERO", use_container_width=True):
+    st.session_state.posicion_seleccionada = "Delantero"
+
+if st.session_state.posicion_seleccionada:
+    # Filtrar los jugadores por la posición seleccionada
+    if st.session_state.posicion_seleccionada == "Portero":
+        jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Goalkeeper")]
+    elif st.session_state.posicion_seleccionada == "Defensa":
+        jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Defender")]
+    elif st.session_state.posicion_seleccionada == "Centrocampista":
+        jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Midfielder")]
+    elif st.session_state.posicion_seleccionada == "Delantero":
+        jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")]
+
+    # Lista de jugadores
+    players_names = sorted(jugadores_filtrados["Player"].unique())
+
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Jugador 1")
+        player1 = st.selectbox("Selecciona el Jugador 1", players_names, key="player1")
+        # Mostrar estadísticas del jugador 1
+        st.dataframe(jugadores_filtrados[jugadores_filtrados["Player"] == player1])
+    
+    with col2:
+        st.subheader("Jugador 2")
+        player2 = st.selectbox("Selecciona el Jugador 2", players_names, key="player2")
+        st.dataframe(jugadores_filtrados[jugadores_filtrados["Player"] == player2])

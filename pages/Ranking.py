@@ -4,6 +4,8 @@ import plotly.express as px
 import numpy as np
 import streamlit.components.v1 as components
 
+# Configuración de la página
+st.set_page_config(page_title="Ranking", page_icon="logo.png", layout="wide")
 
 st.title("Dashboard de estadísticas")
 

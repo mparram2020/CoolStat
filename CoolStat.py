@@ -173,7 +173,7 @@ def shot_map(team, match_id):
             x=shot['location'][0],
             y=shot['location'][1],
             ax=ax,
-            s=1500 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
+            s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
             color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
             edgecolors='black',
             alpha=1 if is_goal else 0.6,  # Opacidad mayor si es gol
@@ -290,7 +290,6 @@ def main():
             away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
 
         # Jugadores restantes
-        # El símbolo ~ es un operador de negación en Pandas 
         home_team_subs = home_team_lineup[
             home_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
         
@@ -347,7 +346,7 @@ def main():
         team_passes[['x', 'y']] = pd.DataFrame(team_passes['location'].tolist(), index=team_passes.index)
         
         # Crear el mapa de calor
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(8, 4))
         
         # Dibujar el campo de fútbol
         pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')

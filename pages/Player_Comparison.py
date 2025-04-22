@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 
 # Configuración de la página
-st.set_page_config(page_title="Comparación de jugadores", page_icon="logo.png", layout="wide")
+st.set_page_config(page_title="Player Comparison", page_icon="logo.png", layout="wide")
 
 @st.cache_data
 def load_data():
@@ -19,11 +19,11 @@ def load_data():
         return euro_goalkeepers, euro_players
 
     except FileNotFoundError as e:
-        st.error(f"Error al cargar los datos: {e}")
+        st.error(f"Error loading data {e}")
         st.stop()
 
-st.subheader("📊 Comparador de Jugadores + Sugerencias de Similares")
-st.write("Selecciona la posición de los jugadores a comparar:")
+st.subheader("📊 Player Comparison + Similar Suggestions")
+st.write("Select the position of the players to compare:")
 
 # Cargar los datos
 euro_goalkeepers, euro_players = load_data()
@@ -46,6 +46,7 @@ euro_stats['Shots/90s'] = (euro_stats['Shots'] / euro_stats['90s']).round(2)
 euro_stats['xA/90s'] = (euro_stats['Expected Assists'] / euro_stats['90s']).round(2)
 euro_stats['xG/90s'] = (euro_stats['Expected Goals'] / euro_stats['90s']).round(2)
 euro_stats['Assists/90s'] = (euro_stats['Assists'] / euro_stats['90s']).round(2)
+euro_stats['Crosses/90s'] = (euro_stats['Crosses'] / euro_stats['90s']).round(2)
 
 if 'posicion_seleccionada' not in st.session_state:
     st.session_state.posicion_seleccionada = None
@@ -63,19 +64,19 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Usa los botones para actualizar el estado de la sesión
-if col1.button("PORTERO", use_container_width=True):
+if col1.button("GOALKEEPER", use_container_width=True):
     st.session_state.posicion_seleccionada = "Portero"
-if col2.button("DEFENSA", use_container_width=True):
+if col2.button("DEFENDER", use_container_width=True):
     st.session_state.posicion_seleccionada = "Defensa"
-if col3.button("CENTROCAMPISTA", use_container_width=True):
+if col3.button("MIDFIELDER", use_container_width=True):
     st.session_state.posicion_seleccionada = "Centrocampista"
-if col4.button("DELANTERO", use_container_width=True):
+if col4.button("FORWARD", use_container_width=True):
     st.session_state.posicion_seleccionada = "Delantero"
 
 if st.session_state.posicion_seleccionada:
     # Filtrar los jugadores por la posición seleccionada
     if st.session_state.posicion_seleccionada == "Portero":
-        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Goalkeeper")]
+        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Goalkeeper")].copy()
         params = ["Saves %", "Clean Sheets %", "GC/90s", "Passing Accuracy %", "Touches/90s"]
     
     elif st.session_state.posicion_seleccionada == "Defensa":
@@ -84,15 +85,17 @@ if st.session_state.posicion_seleccionada:
                   "Passing Accuracy %", "Fouls Committed/90s", "Crosses/90s"]
 
     elif st.session_state.posicion_seleccionada == "Centrocampista":
-        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Midfielder")]
-        params = ["Passing Accuracy %", "Touches/90s", "Key Passes/90s", "Shots/90s",
-                  "Assists/90s", "xA/90s", "xG/90s", "G/90s"]
+        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Midfielder")].copy()
+        params = ["Passing Accuracy %", "Touches/90s", "Key Passes/90s", "xA/90s",
+                  "Assists/90s", "Shots/90s", "xG/90s", "G/90s"]
 
     elif st.session_state.posicion_seleccionada == "Delantero":
-        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")]
+        df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")].copy()
         params = ["G/90s", "xG/90s", "Shots/90s", "xA/90s", "Assists/90s", "Touches/90s", "Key Passes/90s"]
 
-
+    # Reemplazar valores None por 0
+    df_jugadores_filtrados.fillna(0, inplace=True)
+    
     # Lista de jugadores
     players_names = sorted(df_jugadores_filtrados["Player"].unique())
 
@@ -102,20 +105,23 @@ if st.session_state.posicion_seleccionada:
     col1, col2 = st.columns(2)
     
     with col1:
-        player1 = st.selectbox("Selecciona el Jugador 1", players_names, key="player1")
+        player1 = st.selectbox("Select Player 1", players_names, key="player1")
         df_player1 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player1][["Player"] + params].reset_index(drop=True)
-        st.dataframe(df_player1.set_index("Player"), use_container_width=True)
     
     with col2:
         # Eliminar el jugador 1 de la lista para evitar selección duplicada
         players_names.remove(player1)
-        player2 = st.selectbox("Selecciona el Jugador 2", players_names, key="player2")
+        player2 = st.selectbox("Select Player 2", players_names, key="player2")
         df_player2 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player2][["Player"] + params].reset_index(drop=True)
-        st.dataframe(df_player2.set_index("Player"), use_container_width=True)
+
+    # Unir ambos dataframes
+    df_comparacion = pd.concat([df_player1, df_player2]).reset_index(drop=True)
+    df_comparacion = df_comparacion.set_index("Player")
+    df = st.dataframe(df_comparacion, use_container_width=True)
         
-    if st.button("Comparar Jugadores", use_container_width=True):
-        st.write(f"Comparando a {player1} y {player2}...")
-        col1, col2, col3 = st.columns([0.75, 2, 0.75])
+    if st.button("Compare Players", use_container_width=True):
+        st.write(f"Comparing {player1} and {player2}...")
+        col1, col2, col3, col4, col5 = st.columns([0.5, 0.75, 3, 0.75, 0.5])
         
         # Pausa de 2 segundos
         time.sleep(2)
@@ -166,10 +172,10 @@ if st.session_state.posicion_seleccionada:
             title_fontsize=16,
             subtitle_fontsize=13
         )
-        endnote = 'Hecho por Marcos Parra'
+        endnote = 'Done by Marcos Parra'
 
         # Crear el radar
-        with col2:
+        with col3:
             radar = Radar()
             fig, ax = radar.plot_radar(ranges=ranges, params=params, values=values,
                                     radar_color=['#B6282F', '#344D94'],
@@ -180,5 +186,7 @@ if st.session_state.posicion_seleccionada:
 
         # Sugerencias de jugadores similares
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-        st.subheader("Sugerencias de jugadores similares")
+        st.subheader("Suggestions for similar players")
+
+        
         

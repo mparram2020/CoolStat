@@ -20,7 +20,7 @@ def load_data():
         return eurocopa, copa_america
     
     except FileNotFoundError as e:
-        st.error(f"Error al cargar los datos: {e}")
+        st.error(f"Error loading data: {e}")
         st.stop()
 
 # Cargar alineaciones
@@ -32,7 +32,7 @@ def lineups():
         return euro_lineups, copa_america_lineups
 
     except FileNotFoundError as e:
-        st.error(f"Error al cargar los datos: {e}")
+        st.error(f"Error loading lineups: {e}")
         st.stop()
 
 @st.cache_data
@@ -43,29 +43,29 @@ def load_events():
         return euro_all_matches, copa_america_all_matches
     
     except FileNotFoundError as e:
-        st.error(f"Error al cargar los eventos: {e}")
+        st.error(f"Error loading events: {e}")
         st.stop()
 
 # Menú lateral
-with st.sidebar.header("🏆 Campeonatos de fútbol"):
+with st.sidebar.header("🏆 Football Championships"):
     eurocopa, copa_america = load_data()
 
     # Renombrar competiciones
-    eurocopa["competition"] = eurocopa["competition"].replace("Europe - UEFA Euro", "Eurocopa")
+    eurocopa["competition"] = eurocopa["competition"].replace("Europe - UEFA Euro", "UEFA Euro")
     copa_america["competition"] = copa_america["competition"].replace("South America - Copa America", "Copa América")
     
     # Lista de competiciones disponibles
     competition_list = (
         eurocopa["competition"].unique().tolist() + copa_america["competition"].unique().tolist()
     )
-    selected_competition = st.sidebar.selectbox("Selecciona una competición", competition_list)
+    selected_competition = st.sidebar.selectbox("Select a competition", competition_list)
 
     # Selección de equipos según la competición elegida
     df_selected = eurocopa if selected_competition in eurocopa["competition"].unique() else copa_america
     
     # Lista de equipos ordenada alfabéticamente
     team_list = sorted(df_selected["home_team"].unique().tolist())
-    selected_team = st.sidebar.selectbox("Selecciona un equipo", team_list)
+    selected_team = st.sidebar.selectbox("Select a team", team_list)
 
     # Crear nueva columna con los equipos del partido
     eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
@@ -75,11 +75,11 @@ with st.sidebar.header("🏆 Campeonatos de fútbol"):
     team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)]
 
     # Ver partidos del equipo seleccionado
-    df_selected_match = st.sidebar.selectbox("Selecciona un partido", team_matches["match_teams"].unique())
+    df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
     match_details = team_matches[team_matches["match_teams"] == df_selected_match]
 
-
-def filter_passes(player, match_id):
+@st.cache_data
+def load_passes(match_id):
     euro_all_events_df, copa_america_all_events_df = load_events()
     
     # Combinar DataFrames de eventos
@@ -98,6 +98,12 @@ def filter_passes(player, match_id):
     # Separar coordenadas
     passes[['x', 'y']] = pd.DataFrame(passes['location'].tolist(), index=passes.index)
     passes[['pass_end_x', 'pass_end_y']] = pd.DataFrame(passes['pass_end_location'].tolist(), index=passes.index)
+
+    return passes
+
+
+def filter_passes(player, match_id):
+    passes = load_passes(match_id)
 
     # Filtrar los pases del jugador
     player_passes = passes[passes["player"] == player]
@@ -138,18 +144,18 @@ def pass_map(player, match_id):
     # Dibujar flechas para los pases exitosos
     pitch.arrows(successful_passes["x"], successful_passes["y"],
                  successful_passes["pass_end_x"], successful_passes["pass_end_y"],
-                 width=3, headwidth=5, headlength=5, color="green", ax=ax, label='Pases completados')
+                 width=3, headwidth=5, headlength=5, color="green", ax=ax, label='Successful passes')
 
     # Dibujar flechas para los pases fallidos
     pitch.arrows(unsuccessful_passes["x"], unsuccessful_passes["y"],
                  unsuccessful_passes["pass_end_x"], unsuccessful_passes["pass_end_y"],
-                 width=3, headwidth=5, headlength=5, color="red", ax=ax, label='Pases fallidos')
+                 width=3, headwidth=5, headlength=5, color="red", ax=ax, label='Unsuccessful passes')
 
     # Leyenda
     ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
 
     # Título
-    ax.set_title(f"Pases de {player}", x=0.5, y=1, fontsize=22, color='black')
+    ax.set_title(f"Passes by {player}", x=0.5, y=1, fontsize=22, color='black')
 
     st.pyplot(fig)
 
@@ -158,7 +164,7 @@ def shot_map(team, match_id):
     # Obtener los tiros del equipo
     shots = filter_shots(team, match_id)
     if shots.empty:
-        st.warning(f"No hubo tiros de {team} en este partido.")
+        st.warning(f"No shots by {team} in this match.")
         return
 
     # Crear el campo de fútbol en orientación vertical
@@ -184,8 +190,8 @@ def shot_map(team, match_id):
 
     # Leyenda
     legend_elements = [
-        Line2D([0], [0], marker='o', color='w', label='Gol', markerfacecolor='green', markeredgecolor='black', markersize=10),
-        Line2D([0], [0], marker='x', color='w', label='Fallo', markeredgecolor='red', markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='Goal', markerfacecolor='green', markeredgecolor='black', markersize=10),
+        Line2D([0], [0], marker='x', color='w', label='Miss', markeredgecolor='red', markersize=10),
         #Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=5),
         #Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=10),
         #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=15),
@@ -193,9 +199,9 @@ def shot_map(team, match_id):
 
     ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
 
-    ax.set_title(f"Tiros de {team}", x=0.5, y=1.03, fontsize=16, color='black')
-    ax.text(x=0.3, y=0.96, s='Menor xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)
-    ax.text(x=0.7, y=0.96, s='Mayor xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
+    ax.set_title(f"{team}'s shots", x=0.5, y=1.03, fontsize=16, color='black')
+    ax.text(x=0.3, y=0.96, s='Lower xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)
+    ax.text(x=0.7, y=0.96, s='Higher xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
 
     # Círculos entre "Menor xG" y "Mayor xG"
     circle_positions = [0.38, 0.46, 0.54, 0.62]  # Posiciones horizontales
@@ -210,9 +216,9 @@ def shot_map(team, match_id):
 def main():
     st.title("⚽ CoolStat Streamlit App")
     
-    st.markdown("##### Página web interactiva para visualizar datos de partidos de la Eurocopa y la Copa América")
+    st.markdown("##### Interactive web page to visualize UEFA Euro and Copa América match data")
 
-    st.subheader(f"📊 Estadísticas de la {selected_competition}")
+    st.subheader(f"📊 {selected_competition} Statistics")
 
     # Obtener los eventos del partido seleccionado
     euro_all_events_df, copa_america_all_events_df = load_events()
@@ -222,18 +228,18 @@ def main():
     match_id = match_details["match_id"].values[0]
     match_events = all_events_df[all_events_df["match_id"] == match_id]
 
-    match_report, data_tab, heatmap_tab, pass_map_tab, shot_map_tab = st.tabs(['Informe del partido', 
-                                                                                'Alineaciones',
-                                                                                'Mapa de calor',
-                                                                                'Mapa de pases',
-                                                                                'Mapa de tiros'])
+    match_report, data_tab, heatmap_tab, pass_map_tab, shot_map_tab = st.tabs(['Match Report', 
+                                                                                'Lineups',
+                                                                                'Heatmap',
+                                                                                'Pass Map',
+                                                                                'Shot Map'])
 
     # Primera pestaña
     with match_report:
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 
         # La cuarta y quinta columnas tienen que ser más pequeñas
-        col1, col2, col3, col4, col5, col6 = st.columns([0.8, 0.5, 0.8, 0.1, 0.5, 0.8])
+        col1, col2, col3, col4, col5, col6 = st.columns([0.8, 0.5, 0.8, 0.1, 0.5, 0.9])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
@@ -256,19 +262,19 @@ def main():
         # Separador
         st.divider()
 
-        st.write("🧍 Entrenador local: ", match_details.iloc[0]["home_managers"])
-        st.write("🧍 Entrenador visitante: ", match_details.iloc[0]["away_managers"])
+        st.write("🧍 Home coach: ", match_details.iloc[0]["home_managers"])
+        st.write("🧍 Away coach: ", match_details.iloc[0]["away_managers"])
         formatted_date = pd.to_datetime(match_details.iloc[0]["match_date"]).strftime("%d/%m/%Y")
-        st.write("📅 Fecha: ", formatted_date)
-        st.write("📣 Árbitro: ", match_details.iloc[0]["referee"])
-        st.write("🏟️ Estadio: ", match_details.iloc[0]["stadium"])
+        st.write("📅 Date: ", formatted_date)
+        st.write("📣 Referee: ", match_details.iloc[0]["referee"])
+        st.write("🏟️ Stadium: ", match_details.iloc[0]["stadium"])
         
 
     # Segunda pestaña
     with data_tab:
         # Cargar las alineaciones
         euro_lineups, copa_america_lineups = lineups()
-        all_lineups = euro_lineups if selected_competition == "Eurocopa" else copa_america_lineups
+        all_lineups = euro_lineups if selected_competition == "UEFA Euro" else copa_america_lineups
 
         # Filtrar por el partido seleccionado usando match_id y quitar el índice
         match_id = match_details["match_id"].values[0]
@@ -302,25 +308,25 @@ def main():
         with col1:
             #st.image("")
             st.write("")
-            st.markdown(f"<h4>Titulares de {home_team}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4>{home_team} Starting XI</h4>", unsafe_allow_html=True)
             df = home_team_starting[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.markdown("<h4>Suplentes</h4>", unsafe_allow_html=True)
+            st.markdown("<h4>Substitutes</h4>", unsafe_allow_html=True)
             df = home_team_subs[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
         with col2:
             st.write("")
-            st.markdown(f"<h4>Titulares de {away_team}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4>{away_team} Starting XI</h4>", unsafe_allow_html=True)
             df = away_team_starting[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
             st.divider()
 
-            st.markdown("<h4>Suplentes</h4>", unsafe_allow_html=True)
+            st.markdown("<h4>Substitutes</h4>", unsafe_allow_html=True)
             df = away_team_subs[["jersey_number", "player_name"]]
             st.dataframe(df.set_index("jersey_number"), use_container_width=True)
 
@@ -328,7 +334,7 @@ def main():
     # Tercera pestaña
     with heatmap_tab:
         # Seleccionar equipo para el mapa de calor
-        selected_team_for_heatmap = st.radio("Seleccionar equipo:", [home_team, away_team])
+        selected_team_for_heatmap = st.radio("Select a team:", [home_team, away_team])
         
         # Filtrar pases del equipo seleccionado
         team_passes = match_events[
@@ -377,14 +383,14 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            local_player_selected = st.selectbox("Jugador del equipo local", home_team_played["player_name"].tolist())
+            local_player_selected = st.selectbox("Home team player", home_team_played["player_name"].tolist())
             st.write("")
 
             # Mostrar el mapa de pases del jugador local seleccionado
             pass_map(local_player_selected, home_team_played["match_id"].iloc[0])
 
         with col2:
-            away_player_selected = st.selectbox("Jugador del equipo visitante", away_team_played["player_name"].tolist())
+            away_player_selected = st.selectbox("Away team player", away_team_played["player_name"].tolist())
             st.write("")
             
             # Mostrar el mapa de pases del jugador visitante seleccionado

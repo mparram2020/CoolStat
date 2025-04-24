@@ -137,7 +137,7 @@ def pass_map(player, match_id):
     successful_passes, unsuccessful_passes = filter_passes(player, match_id)
 
     # Dibujar el campo de fútbol
-    pitch = Pitch(pitch_type='statsbomb', pitch_color='white')
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='#22312b')
     fig, ax = pitch.draw(figsize=(14, 9), constrained_layout=True, tight_layout=False)
     fig.set_facecolor('white')
 
@@ -155,7 +155,7 @@ def pass_map(player, match_id):
     ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
 
     # Título
-    ax.set_title(f"Passes by {player}", x=0.5, y=1, fontsize=22, color='black')
+    ax.set_title(f"Passes by {player}", x=0.5, y=1.02, fontsize=22, color='black')
 
     st.pyplot(fig)
 
@@ -192,9 +192,9 @@ def shot_map(team, match_id):
     legend_elements = [
         Line2D([0], [0], marker='o', color='w', label='Goal', markerfacecolor='green', markeredgecolor='black', markersize=10),
         Line2D([0], [0], marker='x', color='w', label='Miss', markeredgecolor='red', markersize=10),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=5),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=10),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=15),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=7),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=12),
+        #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=17),
     ]
 
     ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
@@ -213,12 +213,13 @@ def shot_map(team, match_id):
     st.pyplot(fig)
 
 
+
 def main():
     st.title("⚽ CoolStat Streamlit App")
     
     st.markdown("##### Interactive web page to visualize UEFA Euro and Copa América match data")
 
-    st.subheader(f"📊 {selected_competition} Statistics")
+    st.subheader(f"📊 {selected_competition} 2024 Statistics")
 
     # Obtener los eventos del partido seleccionado
     euro_all_events_df, copa_america_all_events_df = load_events()
@@ -237,27 +238,107 @@ def main():
     # Primera pestaña
     with match_report:
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+        
+        # Resultado y goleadores
+        goals = match_events[match_events["shot_outcome"] == "Goal"]  # Filtrar eventos de tipo "Goal"
+        own_goals = match_events[match_events["type"] == "Own Goal Against"] # Filtrar eventos de tipo "Own Goal"
+        missed_penalties = match_events[(match_events["shot_outcome"] == "Saved") & (match_events["shot_type"] == "Penalty")] # Filtrar penaltis fallados
+
+        # Filtrar goles por equipo
+        home_goals = goals[goals["team"] == match_details.iloc[0]["home_team"]]
+        away_goals = goals[goals["team"] == match_details.iloc[0]["away_team"]]
+
+        # Filtrar goles en propia puerta
+        home_own_goals = own_goals[own_goals["team"] == match_details.iloc[0]["home_team"]]
+        away_own_goals = own_goals[own_goals["team"] == match_details.iloc[0]["away_team"]]
+
+        # Filtrar penaltis fallados
+        home_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["home_team"]]
+        away_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["away_team"]]
 
         # La cuarta y quinta columnas tienen que ser más pequeñas
-        col1, col2, col3, col4, col5, col6 = st.columns([0.8, 0.5, 0.8, 0.1, 0.5, 0.9])
+        col1, col2, col3, col4, col5, col6 = st.columns([0.9, 0.7, 0.5, 0.3, 0.7, 0.8])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
         
         with col2:
             st.image(f"img/{match_details.iloc[0]['home_team']}.jpg", width=80)
+            
+            # Construir texto para los goles del equipo local
+            home_goals_text = ""
+            if home_goals.empty and away_own_goals.empty and home_missed_penalties.empty:
+                home_goals_text = ""
+            else:
+                for _, goal in home_goals.iterrows():
+                    player = goal["player"]
+                    minute = goal["minute"]
+                    is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
+                    penalty_marker = " (p)" if is_penalty else ""
+                    home_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
+
+                for _, own_goal in away_own_goals.iterrows():
+                    player = own_goal["player"]
+                    minute = own_goal["minute"]
+                    home_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
+
+                for _, penalty in home_missed_penalties.iterrows():
+                    player = penalty["player"]
+                    minute = penalty["minute"]
+                    home_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
+
+            # Consolidar todo en un único st.markdown
+            st.markdown(f"""
+                <div style="text-align: center;">
+                    <div style="margin-top: 30px;"></div>
+                    <div style="text-align: left;">
+                        <p>{home_goals_text}</p>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
         
         with col3:
             # Resultado
             st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
-            
     
         with col5:
             st.image(f"img/{match_details.iloc[0]['away_team']}.jpg", width=80)
 
+            # Construir texto para los goles del equipo visitante
+            away_goals_text = ""
+            if away_goals.empty and home_own_goals.empty and away_missed_penalties.empty:
+                away_goals_text = ""
+            else:
+                for _, goal in away_goals.iterrows():
+                    player = goal["player"]
+                    minute = goal["minute"]
+                    is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
+                    penalty_marker = " (p)" if is_penalty else ""
+                    away_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
+
+                for _, own_goal in home_own_goals.iterrows():
+                    player = own_goal["player"]
+                    minute = own_goal["minute"]
+                    away_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
+
+                for _, penalty in away_missed_penalties.iterrows():
+                    player = penalty["player"]
+                    minute = penalty["minute"]
+                    away_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
+            
+            # Consolidar todo en un único st.markdown
+            st.markdown(f"""
+                <div style="text-align: center;">
+                    <div style="margin-top: 30px;"></div>
+                    <div style="text-align: left;">
+                        <p>{away_goals_text}</p>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
         with col6:
             # Visitante
-            st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['away_team']}</h4>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='text-align: left;'>{match_details.iloc[0]['away_team']}</h4>", unsafe_allow_html=True)
 
         # Separador
         st.divider()
@@ -268,6 +349,9 @@ def main():
         st.write("📅 Date: ", formatted_date)
         st.write("📣 Referee: ", match_details.iloc[0]["referee"])
         st.write("🏟️ Stadium: ", match_details.iloc[0]["stadium"])
+
+        
+
         
 
     # Segunda pestaña
@@ -405,7 +489,13 @@ def main():
         
         away_team_played = away_team_lineup[
             away_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
-        ]   
+        ]
+
+        # Explicación del xG
+        st.info((
+            "ℹ️ xG (Expected Goals) is a metric that estimates the quality of a shot based on various factors such as "
+            "distance from goal, angle, and type of shot. A higher xG value indicates a better chance of scoring."
+        ))
 
         col1, col2 = st.columns(2)
 

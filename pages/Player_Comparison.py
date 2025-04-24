@@ -31,7 +31,9 @@ euro_stats = pd.concat([euro_goalkeepers, euro_players], ignore_index=True)
 
 # Redondear los valores de las estadísticas a 2 decimales
 # Para porteros
-euro_stats['GC/90s'] = (euro_stats['Goals Conceeded'] / euro_stats['90s'])
+euro_stats['GC/90s'] = (euro_stats['Goals Conceeded'] / euro_stats['90s']).round(2)
+euro_stats['Penalty Save %'] = (euro_stats['Penalty Save'] / euro_stats['Penalty attempted']).round(2)
+
 
 # Para jugadores de campo
 euro_stats['G/90s'] = (euro_stats['Goals'] / euro_stats['90s']).round(2)
@@ -77,7 +79,7 @@ if st.session_state.posicion_seleccionada:
     # Filtrar los jugadores por la posición seleccionada
     if st.session_state.posicion_seleccionada == "Portero":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Goalkeeper")].copy()
-        params = ["Saves %", "Clean Sheets %", "GC/90s", "Passing Accuracy %", "Touches/90s"]
+        params = ["Saves %", "Clean Sheets %", "GC/90s", "Penalty Save %", "Passing Accuracy %", "Touches/90s"]
     
     elif st.session_state.posicion_seleccionada == "Defensa":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Defender")]
@@ -93,8 +95,9 @@ if st.session_state.posicion_seleccionada:
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")].copy()
         params = ["G/90s", "xG/90s", "Shots/90s", "xA/90s", "Assists/90s", "Touches/90s", "Key Passes/90s"]
 
-    # Reemplazar valores None por 0
+    # Reemplazar valores None por 0. Resuelvo el warning con infer_objects
     df_jugadores_filtrados.fillna(0, inplace=True)
+    df_jugadores_filtrados.infer_objects(copy=False)
     
     # Lista de jugadores
     players_names = sorted(df_jugadores_filtrados["Player"].unique())
@@ -121,6 +124,9 @@ if st.session_state.posicion_seleccionada:
         
     if st.button("Compare Players", use_container_width=True):
         st.write(f"Comparing {player1} and {player2}...")
+
+        # Explicación de las métricas
+        st.info("ℹ️ Metrics with '/90s' indicate that the values are normalized per 90 minutes played. This allows fair comparisons between players with different amounts of playing time.")
         col1, col2, col3, col4, col5 = st.columns([0.5, 0.75, 3, 0.75, 0.5])
         
         # Pausa de 2 segundos
@@ -182,7 +188,7 @@ if st.session_state.posicion_seleccionada:
                                     alphas=[.75, .6], title=title, endnote=endnote, compare=True)
 
             st.pyplot(fig)
-
+            
 
         # Sugerencias de jugadores similares
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)

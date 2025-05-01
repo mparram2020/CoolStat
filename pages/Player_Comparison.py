@@ -6,6 +6,8 @@ import numpy as np
 from soccerplots.radar_chart import Radar
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.preprocessing import StandardScaler
+import faiss
 
 
 # Configuración de la página
@@ -22,7 +24,8 @@ def load_data():
         st.error(f"Error loading data {e}")
         st.stop()
 
-st.subheader("📊 Player Comparison + Similar Suggestions")
+
+st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
 st.write("Select the position of the players to compare:")
 
 # Cargar los datos
@@ -67,31 +70,31 @@ st.markdown("""
 
 # Usa los botones para actualizar el estado de la sesión
 if col1.button("GOALKEEPER", use_container_width=True):
-    st.session_state.posicion_seleccionada = "Portero"
+    st.session_state.posicion_seleccionada = "Goalkeeper"
 if col2.button("DEFENDER", use_container_width=True):
-    st.session_state.posicion_seleccionada = "Defensa"
+    st.session_state.posicion_seleccionada = "Defender"
 if col3.button("MIDFIELDER", use_container_width=True):
-    st.session_state.posicion_seleccionada = "Centrocampista"
+    st.session_state.posicion_seleccionada = "Midfielder"
 if col4.button("FORWARD", use_container_width=True):
-    st.session_state.posicion_seleccionada = "Delantero"
+    st.session_state.posicion_seleccionada = "Forward"
 
 if st.session_state.posicion_seleccionada:
     # Filtrar los jugadores por la posición seleccionada
-    if st.session_state.posicion_seleccionada == "Portero":
+    if st.session_state.posicion_seleccionada == "Goalkeeper":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Goalkeeper")].copy()
         params = ["Saves %", "Clean Sheets %", "GC/90s", "Penalty Save %", "Passing Accuracy %", "Touches/90s"]
     
-    elif st.session_state.posicion_seleccionada == "Defensa":
+    elif st.session_state.posicion_seleccionada == "Defender":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Defender")]
-        params = ["Balls Recovered/90s", "Tackles Won/90s", "Tackles Lost/90s", "Interceptions/90s",
+        params = ["Balls Recovered/90s", "Tackles Won/90s", "Interceptions/90s",
                   "Passing Accuracy %", "Fouls Committed/90s", "Crosses/90s"]
 
-    elif st.session_state.posicion_seleccionada == "Centrocampista":
+    elif st.session_state.posicion_seleccionada == "Midfielder":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Midfielder")].copy()
         params = ["Passing Accuracy %", "Touches/90s", "Key Passes/90s", "xA/90s",
                   "Assists/90s", "Shots/90s", "xG/90s", "G/90s"]
 
-    elif st.session_state.posicion_seleccionada == "Delantero":
+    elif st.session_state.posicion_seleccionada == "Forward":
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")].copy()
         params = ["G/90s", "xG/90s", "Shots/90s", "xA/90s", "Assists/90s", "Touches/90s", "Key Passes/90s"]
 
@@ -108,13 +111,13 @@ if st.session_state.posicion_seleccionada:
     col1, col2 = st.columns(2)
     
     with col1:
-        player1 = st.selectbox("Select Player 1", players_names, key="player1")
+        player1 = st.selectbox("Player 1", players_names, key="player1")
         df_player1 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player1][["Player"] + params].reset_index(drop=True)
     
     with col2:
         # Eliminar el jugador 1 de la lista para evitar selección duplicada
         players_names.remove(player1)
-        player2 = st.selectbox("Select Player 2", players_names, key="player2")
+        player2 = st.selectbox("Player 2", players_names, key="player2")
         df_player2 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player2][["Player"] + params].reset_index(drop=True)
 
     # Unir ambos dataframes
@@ -122,8 +125,9 @@ if st.session_state.posicion_seleccionada:
     df_comparacion = df_comparacion.set_index("Player")
     df = st.dataframe(df_comparacion, use_container_width=True)
         
+    st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     if st.button("Compare Players", use_container_width=True):
-        st.write(f"Comparing {player1} and {player2}...")
+        st.write(f"Comparing {st.session_state.posicion_seleccionada}s {player1} and {player2}...")
 
         # Explicación de las métricas
         st.info("ℹ️ Metrics with '/90s' indicate that the values are normalized per 90 minutes played. This allows fair comparisons between players with different amounts of playing time.")
@@ -192,7 +196,67 @@ if st.session_state.posicion_seleccionada:
 
         # Sugerencias de jugadores similares
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-        st.subheader("Suggestions for similar players")
+        
+        # Limpiar el dataframe para que no haya inf, -inf. Cambiarlos por NaN
+        df_clean = df_jugadores_filtrados[["Player"] + params].replace([np.inf, -np.inf], np.nan)
+        df_clean.dropna(inplace=True)  # Elimina filas con NaN
 
+        # Guardar nombres y extraer características
+        player_names_clean = df_clean["Player"].values
+        X = df_clean[params].values
+
+        # Normalizar los datos con la misma escala de media 0 y desviacion estandar 1
+        X_scaled = StandardScaler().fit_transform(X)
+
+        # Crear índice de FAISS IndexFlatL2, que utiliza la distancia euclídea al cuadrado para medir la similitud entre vectores
+        index = faiss.IndexFlatL2(X_scaled.shape[1])
+        # Guardar los vectores en el índice
+        index.add(X_scaled)
+
+        col1, col2, col3, col4 = st.columns([0.2, 0.5, 0.1, 0.5])
+
+        with col2:
+            # Vector del jugador 1
+            if player1 in player_names_clean:
+                # Obtener el índice del jugador 1 y su vector
+                idx_player1 = np.where(player_names_clean == player1)[0][0]
+                query_vector = X_scaled[idx_player1].reshape(1, -1)
+
+                # Buscar los 5 jugadores más similares (excluyendo el jugador 1)
+                distances, indices = index.search(query_vector, 6)
+                similar_players = player_names_clean[indices[0][1:]]
+                similarity_scores = 1 / (1 + distances[0][1:])
+
+                # Mostrar los jugadores similares
+                st.write(f"<h4>Similar data to <b>{player1}</b>:</h4>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+
+                for i, (name, score) in enumerate(zip(similar_players, similarity_scores), start=1):
+                    st.markdown(
+                        f"<p style='font-size:18px;'>{i}. {name} - Score: <b>{score:.3f}</b></p>",
+                        unsafe_allow_html=True)
+
+        with col4:
+            if player2 in player_names_clean:
+                # Obtener el índice del jugador 2 y su vector
+                idx_player2 = np.where(player_names_clean == player2)[0][0]
+                query_vector2 = X_scaled[idx_player2].reshape(1, -1)
+
+                # Buscar los 5 jugadores más similares (excluyendo el jugador 2)
+                distances, indices = index.search(query_vector2, 6)
+                similar_players2 = player_names_clean[indices[0][1:]]
+                similarity_scores2 = 1 / (1 + distances[0][1:])
+
+                # Mostrar los jugadores similares
+                st.write(f"<h4>Similar data to <b>{player2}</b>:</h4>", unsafe_allow_html=True)
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+
+                for i, (name, score) in enumerate(zip(similar_players2, similarity_scores2), start=1):
+                    st.markdown(
+                        f"<p style='font-size:18px;'>{i}. {name} - Score: <b>{score:.3f}</b></p>",
+                        unsafe_allow_html=True)
+
+        st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+        st.info ("ℹ️ The similarity score is calculated using the Euclidean distance between the players' statistics. A greater score indicates greater similarity.")
         
         

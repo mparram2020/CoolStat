@@ -1,3 +1,5 @@
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize, to_rgba
 from matplotlib.lines import Line2D
 import streamlit as st
 import pandas as pd
@@ -7,6 +9,7 @@ from mplsoccer import Pitch, VerticalPitch
 from scipy.stats import gaussian_kde
 import plotly.express as px
 import plotly.graph_objects as go
+import ast
 
 # Configuración de la página
 st.set_page_config(page_title="CoolStat", page_icon="logo.png", layout="wide")
@@ -78,21 +81,19 @@ with st.sidebar.header("🏆 Football Championships"):
     df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
     match_details = team_matches[team_matches["match_teams"] == df_selected_match]
 
+
 @st.cache_data
 def load_passes(match_id):
     euro_all_events_df, copa_america_all_events_df = load_events()
     
-    # Combinar DataFrames de eventos
     all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+    passes = all_events_df[(all_events_df["type"] == "Pass") & (all_events_df["match_id"] == match_id)].copy()
     
-    # Filtrar eventos de tipo "Pass"
-    passes = all_events_df[(all_events_df["type"] == "Pass") & (all_events_df["match_id"] == match_id)]
+    # Convertir strings a listas (más seguro con ast.literal_eval)
+    passes['location'] = passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
+    passes['pass_end_location'] = passes['pass_end_location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
 
-    # Convertir 'location' y 'pass_end_location' a listas si vienen como string
-    passes.loc[:, 'location'] = passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
-    passes.loc[:, 'pass_end_location'] = passes['pass_end_location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
-
-    # Filtrar filas con valores válidos en 'location' y 'pass_end_location'
+    # Filtrar valores válidos
     passes = passes[passes['location'].notnull() & passes['pass_end_location'].notnull()]
 
     # Separar coordenadas
@@ -104,6 +105,7 @@ def load_passes(match_id):
 
 def filter_passes(player, match_id):
     passes = load_passes(match_id)
+
 
     # Filtrar los pases del jugador
     player_passes = passes[passes["player"] == player]
@@ -124,10 +126,10 @@ def filter_shots(team, match_id):
     match_events = all_events_df[all_events_df["match_id"] == match_id]
 
     # Filtrar tiros
-    shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True)
+    shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
 
     # Convertir 'location' a listas
-    shots['location'] = shots['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+    shots['location'] = shots['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
 
     return shots
 
@@ -152,7 +154,7 @@ def pass_map(player, match_id):
                  width=3, headwidth=5, headlength=5, color="red", ax=ax, label='Unsuccessful passes')
 
     # Leyenda
-    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=11, loc='upper left')
+    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=12, loc='upper left')
 
     # Título
     ax.set_title(f"Passes by {player}", x=0.5, y=1.02, fontsize=22, color='black')
@@ -163,9 +165,9 @@ def pass_map(player, match_id):
 def shot_map(team, match_id):
     # Obtener los tiros del equipo
     shots = filter_shots(team, match_id)
-    if shots.empty:
-        st.warning(f"No shots by {team} in this match.")
-        return
+
+    # Excluir los penaltis
+    shots = shots[shots["shot_type"] != "Penalty"]
 
     # Crear el campo de fútbol en orientación vertical
     pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True)
@@ -197,9 +199,9 @@ def shot_map(team, match_id):
         #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=17),
     ]
 
-    ax.legend(handles=legend_elements, loc='upper left', fontsize=11, facecolor='white', edgecolor='black')
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='white', edgecolor='black')
 
-    ax.set_title(f"{team}'s shots", x=0.5, y=1.03, fontsize=16, color='black')
+    ax.set_title(f"{team}'s shots", x=0.5, y=1.03, fontsize=17, color='black')
     ax.text(x=0.3, y=0.96, s='Lower xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)
     ax.text(x=0.7, y=0.96, s='Higher xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
 
@@ -211,7 +213,6 @@ def shot_map(team, match_id):
     
     # Mostrar el gráfico
     st.pyplot(fig)
-
 
 
 def main():
@@ -256,8 +257,7 @@ def main():
         home_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["home_team"]]
         away_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["away_team"]]
 
-        # La cuarta y quinta columnas tienen que ser más pequeñas
-        col1, col2, col3, col4, col5, col6 = st.columns([0.9, 0.7, 0.5, 0.3, 0.7, 0.8])
+        col1, col2, col3, col4, col5, col6 = st.columns([0.9, 0.8, 0.3, 0.4, 0.7, 0.9])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
@@ -272,19 +272,19 @@ def main():
             else:
                 for _, goal in home_goals.iterrows():
                     player = goal["player"]
-                    minute = goal["minute"]
+                    minute = goal["minute"] + 1 if goal["minute"] == 0 else goal["minute"] # Sumar 1 al minuto si fue en los primeros segundos
                     is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
                     penalty_marker = " (p)" if is_penalty else ""
                     home_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
 
                 for _, own_goal in away_own_goals.iterrows():
                     player = own_goal["player"]
-                    minute = own_goal["minute"]
+                    minute = own_goal["minute"] + 1 if own_goal["minute"] == 0 else own_goal["minute"] # Sumar 1 al minuto si fue en los primeros segundos
                     home_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
 
                 for _, penalty in home_missed_penalties.iterrows():
                     player = penalty["player"]
-                    minute = penalty["minute"]
+                    minute = penalty["minute"] + 1 if penalty["minute"] == 0 else penalty["minute"] # Sumar 1 al minuto si fue en los primeros segundos
                     home_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
 
             # Consolidar todo en un único st.markdown
@@ -311,19 +311,19 @@ def main():
             else:
                 for _, goal in away_goals.iterrows():
                     player = goal["player"]
-                    minute = goal["minute"]
+                    minute = goal["minute"] + 1 if goal["minute"] == 0 else goal["minute"] # Sumar 1 al minuto si fue en los primeros segundos
                     is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
                     penalty_marker = " (p)" if is_penalty else ""
                     away_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
 
                 for _, own_goal in home_own_goals.iterrows():
                     player = own_goal["player"]
-                    minute = own_goal["minute"]
+                    minute = own_goal["minute"] + 1 if own_goal["minute"] == 0 else own_goal["minute"]
                     away_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
 
                 for _, penalty in away_missed_penalties.iterrows():
                     player = penalty["player"]
-                    minute = penalty["minute"]
+                    minute = penalty["minute"] + 1 if penalty["minute"] == 0 else penalty["minute"] # Sumar 1 al minuto si fue en los primeros segundos
                     away_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
             
             # Consolidar todo en un único st.markdown
@@ -350,9 +350,6 @@ def main():
         st.write("📣 Referee: ", match_details.iloc[0]["referee"])
         st.write("🏟️ Stadium: ", match_details.iloc[0]["stadium"])
 
-        
-
-        
 
     # Segunda pestaña
     with data_tab:
@@ -417,6 +414,15 @@ def main():
     
     # Tercera pestaña
     with heatmap_tab:
+
+        st.info("""
+        ℹ️ Numerical values on the colorbar represent the relative density of passes across different areas of the pitch, calculated using Kernel Density Estimation (KDE).
+
+        - Higher values → areas with a higher concentration of passes (more passes started in or near that zone).
+
+        - Lower values (closer to 0) → areas with low or no passing activity.
+        """)
+
         # Seleccionar equipo para el mapa de calor
         selected_team_for_heatmap = st.radio("Select a team:", [home_team, away_team])
         
@@ -424,32 +430,53 @@ def main():
         team_passes = match_events[
             (match_events["type"] == "Pass") & 
             (match_events["team"] == selected_team_for_heatmap)
-        ]
+        ].copy()
         
         # Convertir 'location' a listas si vienen como string
-        team_passes.loc[:, 'location'] = team_passes['location'].apply(lambda loc: eval(loc) if isinstance(loc, str) else loc)
+        team_passes['location'] = team_passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
         
         # Filtrar filas con valores válidos en 'location'
         team_passes = team_passes[team_passes['location'].notnull()]
         
         # Separar coordenadas
         team_passes[['x', 'y']] = pd.DataFrame(team_passes['location'].tolist(), index=team_passes.index)
+
+        col1, col2, col3 = st.columns([0.3, 0.7, 0.3])
+        
+    with col2:
         
         # Crear el mapa de calor
-        fig, ax = plt.subplots(figsize=(8, 4))
+        fig, ax = plt.subplots(figsize=(8, 6))
         
         # Dibujar el campo de fútbol
         pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')
         pitch.draw(ax=ax)
         
-        # Crear kernel density estimation para los pases
+        # Crear kernel density estimation para la localización de inicio del pase
         kde = gaussian_kde([team_passes['x'], team_passes['y']])
         xi, yi = np.mgrid[0:120:100j, 0:80:100j]
         zi = kde(np.vstack([xi.flatten(), yi.flatten()]))
-        
+
         # Dibujar el mapa de calor
-        ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.6)
-        
+        heatmap = ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.6)
+
+        # Leyenda visual
+        norm = Normalize(vmin=zi.min(), vmax=zi.max())
+        sm = ScalarMappable(norm=norm, cmap='hot')
+        cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
+
+        # Obtener posición del eje del colorbar
+        cbar_ax = cbar.ax
+
+        # Añadir texto encima del colorbar
+        cbar_ax.text(2.3, 1.05, 'Pass Density', ha='center', va='bottom', fontsize=10, transform=cbar_ax.transAxes)
+
+        # Añadir flecha de dirección de ataque
+        ax.annotate('', xy=(95, 5), xytext=(75, 5),
+                    arrowprops=dict(facecolor='black', width=1, headwidth=5))
+        ax.text(85, 10, 'Attacking direction', ha='center', fontsize=9)
+        ax.set_title(f"{selected_team_for_heatmap}'s Passing Heatmap", fontsize=16, color='black')
+
         st.pyplot(fig)
 
 
@@ -479,9 +506,9 @@ def main():
             
             # Mostrar el mapa de pases del jugador visitante seleccionado
             pass_map(away_player_selected, away_team_played["match_id"].iloc[0])
-            
+  
 
-    # Quinta pestaña
+    # Sexta pestaña
     with shot_map_tab:
         home_team_played = home_team_lineup[
             home_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
@@ -496,7 +523,7 @@ def main():
             "ℹ️ xG (Expected Goals) is a metric that estimates the quality of a shot based on various factors such as "
             "distance from goal, angle, and type of shot. A higher xG value indicates a better chance of scoring."
         ))
-
+        
         col1, col2 = st.columns(2)
 
         with col1:
@@ -506,6 +533,8 @@ def main():
         with col2:
             st.write("")
             shot_map(away_team, away_team_played["match_id"].iloc[0])
+
+        st.warning("⚠️ Penalties are not included in the shot maps.")
 
 
     # st.divider()

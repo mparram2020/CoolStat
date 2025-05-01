@@ -1,4 +1,5 @@
 asyncio
+faiss_cpu
 matplotlib
 mplsoccer
 networkx

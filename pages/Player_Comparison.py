@@ -98,18 +98,16 @@ if st.session_state.posicion_seleccionada:
         df_jugadores_filtrados = euro_stats[euro_stats["Pos"].str.contains("Forward")].copy()
         params = ["G/90s", "xG/90s", "Shots/90s", "xA/90s", "Assists/90s", "Touches/90s", "Key Passes/90s"]
 
-    # Reemplazar valores None por 0. Resuelvo el warning con infer_objects
-    df_jugadores_filtrados.fillna(0, inplace=True)
-    df_jugadores_filtrados.infer_objects(copy=False)
+    # Reemplazar valores None por 0
+    df_jugadores_filtrados = df_jugadores_filtrados.where(pd.notnull(df_jugadores_filtrados), 0)
     
     # Lista de jugadores
     players_names = sorted(df_jugadores_filtrados["Player"].unique())
 
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
 
-
+    # Selección de jugadores
     col1, col2 = st.columns(2)
-    
     with col1:
         player1 = st.selectbox("Player 1", players_names, key="player1")
         df_player1 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player1][["Player"] + params].reset_index(drop=True)
@@ -120,7 +118,7 @@ if st.session_state.posicion_seleccionada:
         player2 = st.selectbox("Player 2", players_names, key="player2")
         df_player2 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player2][["Player"] + params].reset_index(drop=True)
 
-    # Unir ambos dataframes
+    # Unir dataframes de jugadores
     df_comparacion = pd.concat([df_player1, df_player2]).reset_index(drop=True)
     df_comparacion = df_comparacion.set_index("Player")
     df = st.dataframe(df_comparacion, use_container_width=True)
@@ -133,8 +131,8 @@ if st.session_state.posicion_seleccionada:
         st.info("ℹ️ Metrics with '/90s' indicate that the values are normalized per 90 minutes played. This allows fair comparisons between players with different amounts of playing time.")
         col1, col2, col3, col4, col5 = st.columns([0.5, 0.75, 3, 0.75, 0.5])
         
-        # Pausa de 2 segundos
-        time.sleep(2)
+        # Pausa de 1 segundos
+        time.sleep(1)
 
         df = df_jugadores_filtrados[(df_jugadores_filtrados['Player'] == player1) | (df_jugadores_filtrados['Player'] == player2)].reset_index()
 
@@ -144,6 +142,7 @@ if st.session_state.posicion_seleccionada:
         b_values = []
 
         for param in params:
+            # Los porcentajes se escalan entre 0 y 100
             if param == "Passing Accuracy %" or param == "Saves %" or param == "Clean Sheets %":
                 a = 0
                 b = 100
@@ -220,32 +219,45 @@ if st.session_state.posicion_seleccionada:
             if player1 in player_names_clean:
                 # Obtener el índice del jugador 1 y su vector
                 idx_player1 = np.where(player_names_clean == player1)[0][0]
-                query_vector = X_scaled[idx_player1].reshape(1, -1)
+                query_vector1 = X_scaled[idx_player1].reshape(1, -1)
 
-                # Buscar los 5 jugadores más similares (excluyendo el jugador 1)
-                distances, indices = index.search(query_vector, 6)
-                similar_players = player_names_clean[indices[0][1:]]
-                similarity_scores = 1 / (1 + distances[0][1:])
+                # Buscar los 5 jugadores más similares (incluye al propio jugador)
+                distances1, indices1 = index.search(query_vector1, 6)
+
+                # Filtrar para excluir al propio jugador
+                filtered_indices1 = [i for i in indices1[0] if i != idx_player1]
+                filtered_distances1 = [distances1[0][i] for i in range(len(indices1[0])) if indices1[0][i] != idx_player1]
+
+                # Obtener los jugadores y scores filtrados
+                similar_players1 = player_names_clean[filtered_indices1[:5]]  # Tomar los 5 jugadores más similares
+                similarity_scores1 = 1 / (1 + np.array(filtered_distances1[:5]))
 
                 # Mostrar los jugadores similares
                 st.write(f"<h4>Similar data to <b>{player1}</b>:</h4>", unsafe_allow_html=True)
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
-                for i, (name, score) in enumerate(zip(similar_players, similarity_scores), start=1):
+                for i, (name, score) in enumerate(zip(similar_players1, similarity_scores1), start=1):
                     st.markdown(
                         f"<p style='font-size:18px;'>{i}. {name} - Score: <b>{score:.3f}</b></p>",
                         unsafe_allow_html=True)
 
         with col4:
+            # Vector del jugador 2
             if player2 in player_names_clean:
                 # Obtener el índice del jugador 2 y su vector
                 idx_player2 = np.where(player_names_clean == player2)[0][0]
                 query_vector2 = X_scaled[idx_player2].reshape(1, -1)
 
                 # Buscar los 5 jugadores más similares (excluyendo el jugador 2)
-                distances, indices = index.search(query_vector2, 6)
-                similar_players2 = player_names_clean[indices[0][1:]]
-                similarity_scores2 = 1 / (1 + distances[0][1:])
+                distances2, indices2 = index.search(query_vector2, 6)
+
+                # Filtrar para excluir al propio jugador
+                filtered_indices2 = [i for i in indices2[0] if i != idx_player2]
+                filtered_distances2 = [distances2[0][i] for i in range(len(indices2[0])) if indices2[0][i] != idx_player2]
+
+                # Obtener los jugadores y scores filtrados
+                similar_players2 = player_names_clean[filtered_indices2[:5]]  # Tomar los 5 jugadores más similares
+                similarity_scores2 = 1 / (1 + np.array(filtered_distances2[:5]))
 
                 # Mostrar los jugadores similares
                 st.write(f"<h4>Similar data to <b>{player2}</b>:</h4>", unsafe_allow_html=True)

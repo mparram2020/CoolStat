@@ -39,55 +39,57 @@ def lineups():
         st.stop()
 
 @st.cache_data
-def load_events():
+def load_events(selected_competition):
     try:
-        euro_all_matches = pd.read_csv("data/euro_all_events.csv", low_memory=False)
-        copa_america_all_matches = pd.read_csv("data/copa_america_all_events.csv", low_memory=False)
-        return euro_all_matches, copa_america_all_matches
+        if selected_competition == "UEFA Euro":
+            events = pd.read_csv("data/euro_all_events.csv", low_memory=False)
+        else:
+            events = pd.read_csv("data/copa_america_all_events.csv", low_memory=False)
+        return events
     
     except FileNotFoundError as e:
         st.error(f"Error loading events: {e}")
         st.stop()
 
 # Menú lateral
-with st.sidebar.header("🏆 Football Championships"):
-    eurocopa, copa_america = load_data()
+st.sidebar.header("🏆 Football Championships")
 
-    # Renombrar competiciones
-    eurocopa["competition"] = eurocopa["competition"].replace("Europe - UEFA Euro", "UEFA Euro")
-    copa_america["competition"] = copa_america["competition"].replace("South America - Copa America", "Copa América")
+eurocopa, copa_america = load_data()
+
+# Renombrar competiciones
+eurocopa["competition"] = eurocopa["competition"].replace("Europe - UEFA Euro", "UEFA Euro")
+copa_america["competition"] = copa_america["competition"].replace("South America - Copa America", "Copa América")
     
-    # Lista de competiciones disponibles
-    competition_list = (
-        eurocopa["competition"].unique().tolist() + copa_america["competition"].unique().tolist()
-    )
-    selected_competition = st.sidebar.selectbox("Select a competition", competition_list)
+# Lista de competiciones disponibles
+competition_list = (
+    eurocopa["competition"].unique().tolist() + copa_america["competition"].unique().tolist()
+)
+selected_competition = st.sidebar.selectbox("Select a competition", competition_list)
 
-    # Selección de equipos según la competición elegida
-    df_selected = eurocopa if selected_competition in eurocopa["competition"].unique() else copa_america
+# Selección de equipos según la competición elegida
+df_selected = eurocopa if selected_competition in eurocopa["competition"].unique() else copa_america
     
-    # Lista de equipos ordenada alfabéticamente
-    team_list = sorted(df_selected["home_team"].unique().tolist())
-    selected_team = st.sidebar.selectbox("Select a team", team_list)
+# Lista de equipos ordenada alfabéticamente
+team_list = sorted(df_selected["home_team"].unique().tolist())
+selected_team = st.sidebar.selectbox("Select a team", team_list)
 
-    # Crear nueva columna con los equipos del partido
-    eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
-    copa_america["match_teams"] = "(" + copa_america['competition_stage'] + ") " + copa_america["home_team"] + " " + copa_america['home_score'].astype(str) + " - " + copa_america['away_score'].astype(str) + " " + copa_america["away_team"]
+# Crear nueva columna con los equipos del partido
+eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
+copa_america["match_teams"] = "(" + copa_america['competition_stage'] + ") " + copa_america["home_team"] + " " + copa_america['home_score'].astype(str) + " - " + copa_america['away_score'].astype(str) + " " + copa_america["away_team"]
 
-    # Filtrar partidos donde el equipo haya jugado
-    team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)]
+# Filtrar partidos donde el equipo haya jugado
+team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)]
 
-    # Ver partidos del equipo seleccionado
-    df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
-    match_details = team_matches[team_matches["match_teams"] == df_selected_match]
+# Ver partidos del equipo seleccionado
+df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
+match_details = team_matches[team_matches["match_teams"] == df_selected_match]
 
 
 @st.cache_data
 def load_passes(match_id):
-    euro_all_events_df, copa_america_all_events_df = load_events()
-    
-    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
-    passes = all_events_df[(all_events_df["type"] == "Pass") & (all_events_df["match_id"] == match_id)].copy()
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+    passes = events[(events["type"] == "Pass") & (events["match_id"] == match_id)].copy()
     
     # Convertir strings a listas (más seguro con ast.literal_eval)
     passes['location'] = passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
@@ -102,10 +104,12 @@ def load_passes(match_id):
 
     return passes
 
-
+@st.cache_data
 def filter_passes(player, match_id):
     passes = load_passes(match_id)
 
+    # Eliminar los saques de banda
+    passes = passes[passes["pass_type"] != "Throw-in"]
 
     # Filtrar los pases del jugador
     player_passes = passes[passes["player"] == player]
@@ -117,13 +121,13 @@ def filter_passes(player, match_id):
     return successful_passes, unsuccessful_passes
 
 
+@st.cache_data
 def filter_shots(team, match_id):
-    # Cargar los eventos del partido seleccionado
-    euro_all_events_df, copa_america_all_events_df = load_events()
-    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
 
     # Filtrar eventos del partido seleccionado
-    match_events = all_events_df[all_events_df["match_id"] == match_id]
+    match_events = events[events["match_id"] == match_id]
 
     # Filtrar tiros
     shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
@@ -154,10 +158,10 @@ def pass_map(player, match_id):
                  width=3, headwidth=5, headlength=5, color="red", ax=ax, label='Unsuccessful passes')
 
     # Leyenda
-    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=12, loc='upper left')
+    ax.legend(facecolor='white', handlelength=4, edgecolor='black', fontsize=13, loc='upper left', bbox_to_anchor=(-0.01, 1.055))
 
     # Título
-    ax.set_title(f"Passes by {player}", x=0.5, y=1.02, fontsize=22, color='black')
+    ax.set_title(f"{player}'s Passes", x=0.5, y=1.075, fontsize=22, color='black')
 
     st.pyplot(fig)
 
@@ -223,12 +227,11 @@ def main():
     st.subheader(f"📊 {selected_competition} 2024 Statistics")
 
     # Obtener los eventos del partido seleccionado
-    euro_all_events_df, copa_america_all_events_df = load_events()
-    all_events_df = pd.concat([euro_all_events_df, copa_america_all_events_df], ignore_index=True)
+    events = load_events(selected_competition)
 
     # Filtrar eventos del partido seleccionado
     match_id = match_details["match_id"].values[0]
-    match_events = all_events_df[all_events_df["match_id"] == match_id]
+    match_events = events[events["match_id"] == match_id]
 
     match_report, data_tab, heatmap_tab, pass_map_tab, shot_map_tab = st.tabs(['Match Report', 
                                                                                 'Lineups',
@@ -257,7 +260,13 @@ def main():
         home_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["home_team"]]
         away_missed_penalties = missed_penalties[missed_penalties["team"] == match_details.iloc[0]["away_team"]]
 
-        col1, col2, col3, col4, col5, col6 = st.columns([0.9, 0.8, 0.3, 0.4, 0.7, 0.9])
+        # Filtrar goles en la tanda de penaltis
+        shootout_goals = match_events[(match_events["shot_outcome"] == "Goal") & (match_events["period"] == 5)]
+        home_shootout_goals = shootout_goals[shootout_goals["team"] == match_details.iloc[0]["home_team"]].shape[0]
+        away_shootout_goals = shootout_goals[shootout_goals["team"] == match_details.iloc[0]["away_team"]].shape[0]
+
+
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 0.8, 0.4, 0.4, 0.7, 0.9])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
@@ -298,33 +307,41 @@ def main():
             """, unsafe_allow_html=True)
         
         with col3:
-            # Resultado
-            st.markdown(f"<h3 style='text-align: center;'>{match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}</h3>", unsafe_allow_html=True)
+            st.markdown(f"""
+                <h3 style='text-align: center;'>
+                    {match_details.iloc[0]['home_score']} - {match_details.iloc[0]['away_score']}
+                </h3>
+            """, unsafe_allow_html=True)
+
+            # Mostrar los goles en la tanda de penaltis solo si existen
+            if not shootout_goals.empty:
+                st.markdown(f"""
+                    <h4 style='text-align: center; color: gray;'>
+                        ({home_shootout_goals} - {away_shootout_goals})
+                    </h4>
+                """, unsafe_allow_html=True)
     
         with col5:
             st.image(f"img/{match_details.iloc[0]['away_team']}.jpg", width=80)
 
             # Construir texto para los goles del equipo visitante
             away_goals_text = ""
-            if away_goals.empty and home_own_goals.empty and away_missed_penalties.empty:
-                away_goals_text = ""
-            else:
-                for _, goal in away_goals.iterrows():
-                    player = goal["player"]
-                    minute = goal["minute"] + 1 if goal["minute"] == 0 else goal["minute"] # Sumar 1 al minuto si fue en los primeros segundos
-                    is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
-                    penalty_marker = " (p)" if is_penalty else ""
-                    away_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
+            for _, goal in away_goals.iterrows():
+                player = goal["player"]
+                minute = goal["minute"] + 1 if goal["minute"] == 0 else goal["minute"] # Sumar 1 al minuto si fue en los primeros segundos
+                is_penalty = goal["shot_type"] == "Penalty"  # Verificar si el gol fue de penalti
+                penalty_marker = " (p)" if is_penalty else ""
+                away_goals_text += f"⚽ <b>{player}{penalty_marker}</b> - {minute}'<br>"
 
-                for _, own_goal in home_own_goals.iterrows():
-                    player = own_goal["player"]
-                    minute = own_goal["minute"] + 1 if own_goal["minute"] == 0 else own_goal["minute"]
-                    away_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
+            for _, own_goal in home_own_goals.iterrows():
+                player = own_goal["player"]
+                minute = own_goal["minute"] + 1 if own_goal["minute"] == 0 else own_goal["minute"]
+                away_goals_text += f"🛑 <b>{player}</b> (Own Goal) - {minute}'<br>"
 
-                for _, penalty in away_missed_penalties.iterrows():
-                    player = penalty["player"]
-                    minute = penalty["minute"] + 1 if penalty["minute"] == 0 else penalty["minute"] # Sumar 1 al minuto si fue en los primeros segundos
-                    away_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
+            for _, penalty in away_missed_penalties.iterrows():
+                player = penalty["player"]
+                minute = penalty["minute"] + 1 if penalty["minute"] == 0 else penalty["minute"] # Sumar 1 al minuto si fue en los primeros segundos
+                away_goals_text += f"❌ <b>{player}</b> (Missed Penalty) - {minute}'<br>"
             
             # Consolidar todo en un único st.markdown
             st.markdown(f"""
@@ -429,8 +446,7 @@ def main():
         # Filtrar pases del equipo seleccionado
         team_passes = match_events[
             (match_events["type"] == "Pass") & 
-            (match_events["team"] == selected_team_for_heatmap)
-        ].copy()
+            (match_events["team"] == selected_team_for_heatmap)].copy()
         
         # Convertir 'location' a listas si vienen como string
         team_passes['location'] = team_passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
@@ -444,7 +460,6 @@ def main():
         col1, col2, col3 = st.columns([0.3, 0.7, 0.3])
         
     with col2:
-        
         # Crear el mapa de calor
         fig, ax = plt.subplots(figsize=(8, 6))
         
@@ -468,14 +483,21 @@ def main():
         # Obtener posición del eje del colorbar
         cbar_ax = cbar.ax
 
-        # Añadir texto encima del colorbar
+        # Texto encima del colorbar
         cbar_ax.text(2.3, 1.05, 'Pass Density', ha='center', va='bottom', fontsize=10, transform=cbar_ax.transAxes)
 
-        # Añadir flecha de dirección de ataque
-        ax.annotate('', xy=(95, 5), xytext=(75, 5),
-                    arrowprops=dict(facecolor='black', width=1, headwidth=5))
-        ax.text(85, 10, 'Attacking direction', ha='center', fontsize=9)
+        # Flecha de dirección de ataque
+        ax.annotate('', xy=(70, 83), xytext=(50, 83),
+                    arrowprops=dict(facecolor='black', width=1, headwidth=4))
+        # Texto encima de la flecha
+        ax.text(60, 85, 'Attacking direction', ha='center', fontsize=8)
+
+        # Título
         ax.set_title(f"{selected_team_for_heatmap}'s Passing Heatmap", fontsize=16, color='black')
+
+        # Ejes del campo
+        ax.set_xlim(0, 120)
+        ax.set_ylim(-10, 90)
 
         st.pyplot(fig)
 

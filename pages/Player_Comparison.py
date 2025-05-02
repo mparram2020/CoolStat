@@ -189,7 +189,6 @@ if st.session_state.posicion_seleccionada:
             fig, ax = radar.plot_radar(ranges=ranges, params=params, values=values,
                                     radar_color=['#B6282F', '#344D94'],
                                     alphas=[.75, .6], title=title, endnote=endnote, compare=True)
-
             st.pyplot(fig)
             
 

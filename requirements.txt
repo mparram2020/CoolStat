@@ -11,4 +11,5 @@ seaborn
 scikit-learn
 scipy
 soccerplots
+statsbombpy
 streamlit

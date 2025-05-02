@@ -126,10 +126,11 @@ if st.session_state.posicion_seleccionada:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     if st.button("Compare Players", use_container_width=True):
         st.write(f"Comparing {st.session_state.posicion_seleccionada}s {player1} and {player2}...")
+        st.progress(100)
 
         # Explicación de las métricas
         st.info("ℹ️ Metrics with '/90s' indicate that the values are normalized per 90 minutes played. This allows fair comparisons between players with different amounts of playing time.")
-        col1, col2, col3, col4, col5 = st.columns([0.5, 0.75, 3, 0.75, 0.5])
+        col1, col2, col3 = st.columns([1, 3, 1])
         
         # Pausa de 1 segundos
         time.sleep(1)
@@ -184,7 +185,7 @@ if st.session_state.posicion_seleccionada:
         endnote = 'Done by Marcos Parra'
 
         # Crear el radar
-        with col3:
+        with col2:
             radar = Radar()
             fig, ax = radar.plot_radar(ranges=ranges, params=params, values=values,
                                     radar_color=['#B6282F', '#344D94'],

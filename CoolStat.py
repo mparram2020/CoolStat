@@ -1,3 +1,4 @@
+from io import BytesIO
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize, to_rgba
 from matplotlib.lines import Line2D
@@ -5,7 +6,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from mplsoccer import Pitch, VerticalPitch
+from mplsoccer import Pitch, VerticalPitch, Sbopen
+from statsbombpy import sb
 from scipy.stats import gaussian_kde
 import plotly.express as px
 import plotly.graph_objects as go
@@ -28,11 +30,14 @@ def load_data():
 
 # Cargar alineaciones
 @st.cache_data
-def lineups():
+def load_lineups():
     try:
-        euro_lineups = pd.read_csv("data/euro_lineups.csv")
-        copa_america_lineups = pd.read_csv("data/copa_america_lineups.csv")
-        return euro_lineups, copa_america_lineups
+        if selected_competition == "UEFA Euro":
+            lineups = pd.read_csv("data/euro_lineups.csv")
+        else:
+            lineups = pd.read_csv("data/copa_america_lineups.csv")
+        
+        return lineups
 
     except FileNotFoundError as e:
         st.error(f"Error loading lineups: {e}")
@@ -45,6 +50,7 @@ def load_events(selected_competition):
             events = pd.read_csv("data/euro_all_events.csv", low_memory=False)
         else:
             events = pd.read_csv("data/copa_america_all_events.csv", low_memory=False)
+        
         return events
     
     except FileNotFoundError as e:
@@ -138,6 +144,7 @@ def filter_shots(team, match_id):
     return shots
 
 
+@st.cache_data
 def pass_map(player, match_id):
     # Obtener los pases del jugador
     successful_passes, unsuccessful_passes = filter_passes(player, match_id)
@@ -162,6 +169,112 @@ def pass_map(player, match_id):
 
     # Título
     ax.set_title(f"{player}'s Passes", x=0.5, y=1.075, fontsize=22, color='black')
+
+    st.pyplot(fig)
+
+
+@st.cache_data
+def filter_pass_network(team, match_id):
+    parser = Sbopen()
+    df, related, freeze, tactics = parser.event(match_id)  # ID del partido
+
+    # Filtrar equipo
+    df = df[df['team_name'] == team]
+
+    # Filtrar pases
+    passes = df[df['type_name'] == 'Pass']
+    passes = passes[['id','minute','player_id','player_name','x','y','end_x', 'end_y',
+                    'pass_recipient_id','pass_recipient_name','outcome_id','outcome_name']]
+
+    # Filtrar pases exitosos antes del primer cambio
+    successful = passes[passes['outcome_name'].isnull()]
+    subs = df[df['type_name'] == 'Substitution']['minute']
+    firstSub = subs.min()
+    successful = successful[successful['minute'] < firstSub]
+
+    # Obtener dorsales y apodos
+    df_lineup = parser.lineup(match_id)
+    jersey_data = df_lineup[['player_id', 'player_nickname', 'jersey_number']]
+
+    # Añadir jersey del pasador
+    successful = pd.merge(successful, jersey_data, on='player_id')
+    successful.rename(columns={'jersey_number': 'passer'}, inplace=True)
+
+    jersey_data = jersey_data.rename(columns={'player_id': 'pass_recipient_id'})
+    successful = pd.merge(successful, jersey_data, on='pass_recipient_id')
+    successful.rename(columns={'jersey_number': 'recipient'}, inplace=True)
+
+    # Crear diccionario dorsal-nombre
+    dorsal_to_name = dict(zip(successful['passer'], successful['player_nickname_x']))
+
+    # Media de las ubicaciones
+    average_locations = successful.groupby('passer').agg({'x': 'mean', 'y': 'mean', 'id': 'count'})
+    average_locations.rename(columns={'id': 'count'}, inplace=True)
+
+    # Pases entre jugadores
+    pass_between = successful.groupby(['passer', 'recipient']).id.count().reset_index()
+    pass_between.rename(columns={'id': 'pass_count'}, inplace=True)
+
+    # Añadir ubicaciones
+    pass_between = pd.merge(pass_between, average_locations, on='passer')
+    average_locations_end = average_locations.rename_axis('recipient').reset_index()
+    pass_between = pd.merge(pass_between, average_locations_end, on='recipient', suffixes=['', '_end'])
+
+    pass_between = pass_between[pass_between['pass_count'] > 1]
+
+    return pass_between, average_locations, dorsal_to_name
+
+
+def pass_network(team, match_id):
+    # Obtener los pases del equipo
+    pass_between, average_locations, dorsal_to_name = filter_pass_network(team, match_id)
+
+    # Dibujar el campo
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='#22312b', line_color='white')
+    fig, ax = pitch.draw(figsize=(12, 8))
+    fig.set_facecolor("#22312b")
+
+    # Dibujar líneas de pase
+    pitch.lines(1.2*pass_between.x, 0.8*pass_between.y,
+                    1.2*pass_between.x_end, 0.8*pass_between.y_end,
+                    lw=pass_between.pass_count * 0.5,
+                    color='white', zorder=1, ax=ax)
+
+    # Dibujar nodos
+    pitch.scatter(1.2*average_locations.x, 0.8*average_locations.y,
+                    s=40*average_locations['count'].values, color='red',
+                    edgecolors='black', linewidth=1, ax=ax, zorder=1)
+
+    # Añadir dorsales y nombres
+    for index, row in average_locations.iterrows():
+        x = 1.2 * row.x
+        y = 0.8 * row.y
+
+        # Dorsal
+        pitch.annotate(index, xy=(x, y), c='white', va='center',
+                    ha='center', fontweight='bold', size=13, ax=ax)
+        
+    
+    # Añadir leyenda a la derecha con nombres y dorsales
+    sorted_dorsals = sorted(dorsal_to_name.keys())
+    legend_text = "\n".join([f"{dorsal}: {dorsal_to_name[dorsal]}" for dorsal in sorted_dorsals])
+    ax.text(125, 40, legend_text, fontsize=12, color='white', va='center', ha='left', linespacing=2.5)
+
+    # Añadir leyenda
+    legend_elements = [
+        Line2D([0], [0], color='white', lw=3, label='More passes (thicker line)'),
+        Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', markerfacecolor='red', markeredgecolor='black', markersize=12)
+    ]
+    
+    # Leyenda
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.022, 1))
+
+    # Título
+    ax.set_title(f"{team}'s Passing Network", y=1.05, color='white', fontsize=20)
+
+    # Ejes del campo
+    #ax.set_xlim(0, 120)
+    #ax.set_ylim(-10, 90)
 
     st.pyplot(fig)
 
@@ -233,11 +346,12 @@ def main():
     match_id = match_details["match_id"].values[0]
     match_events = events[events["match_id"] == match_id]
 
-    match_report, data_tab, heatmap_tab, pass_map_tab, shot_map_tab = st.tabs(['Match Report', 
-                                                                                'Lineups',
-                                                                                'Heatmap',
-                                                                                'Pass Map',
-                                                                                'Shot Map'])
+    match_report, data_tab, heatmap_tab, pass_map_tab, pass_network_tab, shot_map_tab = st.tabs(['Match Report', 
+                                                                                                    'Lineups',
+                                                                                                    'Heatmap',
+                                                                                                    'Pass Map',
+                                                                                                    'Pass Network',
+                                                                                                    'Shot Map'])
 
     # Primera pestaña
     with match_report:
@@ -371,12 +485,11 @@ def main():
     # Segunda pestaña
     with data_tab:
         # Cargar las alineaciones
-        euro_lineups, copa_america_lineups = lineups()
-        all_lineups = euro_lineups if selected_competition == "UEFA Euro" else copa_america_lineups
+        lineups = load_lineups()
 
         # Filtrar por el partido seleccionado usando match_id y quitar el índice
         match_id = match_details["match_id"].values[0]
-        match_lineups = all_lineups[all_lineups["match_id"] == match_id]
+        match_lineups = lineups[lineups["match_id"] == match_id]
 
         # Obtener los nombres de los equipos en el partido
         home_team = match_details["home_team"].values[0]
@@ -432,13 +545,16 @@ def main():
     # Tercera pestaña
     with heatmap_tab:
 
-        st.info("""
-        ℹ️ Numerical values on the colorbar represent the relative density of passes across different areas of the pitch, calculated using Kernel Density Estimation (KDE).
+        with st.expander("ℹ️ Explanation of the heatmap"):
+                         
+            st.markdown("""
+            Numerical values on the colorbar represent the relative density of passes across different areas of the pitch, calculated using Kernel Density Estimation (KDE).
 
-        - Higher values → areas with a higher concentration of passes (more passes started in or near that zone).
+                - Higher values → areas with a higher concentration of passes (more passes started in or near that zone).
 
-        - Lower values (closer to 0) → areas with low or no passing activity.
-        """)
+                - Lower values (closer to 0) → areas with low or no passing activity.
+            """)
+        
 
         # Seleccionar equipo para el mapa de calor
         selected_team_for_heatmap = st.radio("Select a team:", [home_team, away_team])
@@ -528,6 +644,21 @@ def main():
             
             # Mostrar el mapa de pases del jugador visitante seleccionado
             pass_map(away_player_selected, away_team_played["match_id"].iloc[0])
+
+        st.warning("⚠️ Throw-ins are not included in the pass maps.")
+
+
+    # Quinta pestaña
+    with pass_network_tab:
+        st.info("ℹ️ This passing network shows the connections between the starting players before the first substitution.")
+
+        selected_team = st.radio("Select a team:", [home_team, away_team], key="pass_network_team")
+
+        col1, col2, col3 = st.columns([0.3, 0.9, 0.3])
+
+        with col2:
+            pass_network(selected_team, match_id)
+        
   
 
     # Sexta pestaña

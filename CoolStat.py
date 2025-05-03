@@ -127,21 +127,7 @@ def filter_passes(player, match_id):
     return successful_passes, unsuccessful_passes
 
 
-@st.cache_data
-def filter_shots(team, match_id):
-    # Obtener los eventos del partido seleccionado
-    events = load_events(selected_competition)
 
-    # Filtrar eventos del partido seleccionado
-    match_events = events[events["match_id"] == match_id]
-
-    # Filtrar tiros
-    shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
-
-    # Convertir 'location' a listas
-    shots['location'] = shots['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
-
-    return shots
 
 
 @st.cache_data
@@ -260,9 +246,12 @@ def pass_network(team, match_id):
     legend_text = "\n".join([f"{dorsal}: {dorsal_to_name[dorsal]}" for dorsal in sorted_dorsals])
     ax.text(125, 40, legend_text, fontsize=12, color='white', va='center', ha='left', linespacing=2.5)
 
+    # De 0 a 5 pases un color
+    # de 6 a 10 otro color, etc
+
     # Añadir leyenda
     legend_elements = [
-        Line2D([0], [0], color='white', lw=3, label='More passes (thicker line)'),
+        Line2D([0], [0], color='white', lw=4, label='More passes between players (thicker line)'),
         Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', markerfacecolor='red', markeredgecolor='black', markersize=12)
     ]
     
@@ -272,12 +261,84 @@ def pass_network(team, match_id):
     # Título
     ax.set_title(f"{team}'s Passing Network", y=1.05, color='white', fontsize=20)
 
+    st.pyplot(fig)
+
+
+@st.cache_data
+def filter_heatmap(team, match_id):
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+
+    # Filtrar eventos del partido seleccionado
+    match_events = events[events["match_id"] == match_id]
+
+    # Filtrar pases del equipo seleccionado
+    team_passes = match_events[(match_events["type"] == "Pass") & (match_events["team"] == team)].copy()
+
+    # Convertir las ubicaciones de los pases a listas
+    team_passes['location'] = team_passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
+
+    # Separar las coordenadas de inicio de los pases
+    team_passes[['x', 'y']] = pd.DataFrame(team_passes['location'].tolist(), index=team_passes.index)
+
+    return team_passes
+
+
+def heatmap(team, match_id):
+    # Filtrar los pases del equipo seleccionado
+    team_passes = filter_heatmap(team, match_id)
+
+    # Crear el mapa de calor
+    fig, ax = plt.subplots(figsize=(8, 6))
+    pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')
+    pitch.draw(ax=ax)
+
+    # Crear kernel density estimation para la localización de inicio del pase
+    kde = gaussian_kde([team_passes['x'], team_passes['y']])
+    xi, yi = np.mgrid[0:120:100j, 0:80:100j]
+    zi = kde(np.vstack([xi.flatten(), yi.flatten()]))
+
+    # Dibujar el mapa de calor
+    heatmap = ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.6)
+
+    # Leyenda visual
+    norm = Normalize(vmin=zi.min(), vmax=zi.max())
+    sm = ScalarMappable(norm=norm, cmap='hot')
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
+
+    # Texto encima del colorbar
+    cbar.ax.text(2.3, 1.05, 'Pass Density', ha='center', va='bottom', fontsize=10, transform=cbar.ax.transAxes)
+
+    # Flecha de dirección de ataque
+    ax.annotate('', xy=(70, 83), xytext=(50, 83),
+                arrowprops=dict(facecolor='black', width=1, headwidth=4))
+    ax.text(60, 85, 'Attacking direction', ha='center', fontsize=8)
+
+    # Título
+    ax.set_title(f"{team}'s Passing Heatmap", fontsize=16, color='black')
+
     # Ejes del campo
-    #ax.set_xlim(0, 120)
-    #ax.set_ylim(-10, 90)
+    ax.set_xlim(0, 120)
+    ax.set_ylim(-10, 90)
 
     st.pyplot(fig)
 
+
+@st.cache_data
+def filter_shots(team, match_id):
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+
+    # Filtrar eventos del partido seleccionado
+    match_events = events[events["match_id"] == match_id]
+
+    # Filtrar tiros
+    shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
+
+    # Convertir 'location' a listas
+    shots['location'] = shots['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
+
+    return shots
 
 def shot_map(team, match_id):
     # Obtener los tiros del equipo
@@ -550,72 +611,18 @@ def main():
             st.markdown("""
             Numerical values on the colorbar represent the relative density of passes across different areas of the pitch, calculated using Kernel Density Estimation (KDE).
 
-                - Higher values → areas with a higher concentration of passes (more passes started in or near that zone).
+                Higher values → areas with a higher concentration of passes (more passes started in or near that zone).
 
-                - Lower values (closer to 0) → areas with low or no passing activity.
+                Lower values (closer to 0) → areas with low or no passing activity.
             """)
         
-
         # Seleccionar equipo para el mapa de calor
         selected_team_for_heatmap = st.radio("Select a team:", [home_team, away_team])
         
-        # Filtrar pases del equipo seleccionado
-        team_passes = match_events[
-            (match_events["type"] == "Pass") & 
-            (match_events["team"] == selected_team_for_heatmap)].copy()
-        
-        # Convertir 'location' a listas si vienen como string
-        team_passes['location'] = team_passes['location'].apply(lambda loc: ast.literal_eval(loc) if isinstance(loc, str) else loc)
-        
-        # Filtrar filas con valores válidos en 'location'
-        team_passes = team_passes[team_passes['location'].notnull()]
-        
-        # Separar coordenadas
-        team_passes[['x', 'y']] = pd.DataFrame(team_passes['location'].tolist(), index=team_passes.index)
-
-        col1, col2, col3 = st.columns([0.3, 0.7, 0.3])
-        
-    with col2:
-        # Crear el mapa de calor
-        fig, ax = plt.subplots(figsize=(8, 6))
-        
-        # Dibujar el campo de fútbol
-        pitch = Pitch(pitch_type='statsbomb', pitch_color='white', line_color='black')
-        pitch.draw(ax=ax)
-        
-        # Crear kernel density estimation para la localización de inicio del pase
-        kde = gaussian_kde([team_passes['x'], team_passes['y']])
-        xi, yi = np.mgrid[0:120:100j, 0:80:100j]
-        zi = kde(np.vstack([xi.flatten(), yi.flatten()]))
-
-        # Dibujar el mapa de calor
-        heatmap = ax.pcolormesh(xi, yi, zi.reshape(xi.shape), cmap='hot', alpha=0.6)
-
-        # Leyenda visual
-        norm = Normalize(vmin=zi.min(), vmax=zi.max())
-        sm = ScalarMappable(norm=norm, cmap='hot')
-        cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
-
-        # Obtener posición del eje del colorbar
-        cbar_ax = cbar.ax
-
-        # Texto encima del colorbar
-        cbar_ax.text(2.3, 1.05, 'Pass Density', ha='center', va='bottom', fontsize=10, transform=cbar_ax.transAxes)
-
-        # Flecha de dirección de ataque
-        ax.annotate('', xy=(70, 83), xytext=(50, 83),
-                    arrowprops=dict(facecolor='black', width=1, headwidth=4))
-        # Texto encima de la flecha
-        ax.text(60, 85, 'Attacking direction', ha='center', fontsize=8)
-
-        # Título
-        ax.set_title(f"{selected_team_for_heatmap}'s Passing Heatmap", fontsize=16, color='black')
-
-        # Ejes del campo
-        ax.set_xlim(0, 120)
-        ax.set_ylim(-10, 90)
-
-        st.pyplot(fig)
+        col1, col2, col3 = st.columns([0.3, 0.9, 0.3])
+        with col2:
+            # Crear el mapa de calor
+            heatmap(selected_team_for_heatmap, match_id)
 
 
     # Cuarta pestaña
@@ -659,7 +666,6 @@ def main():
         with col2:
             pass_network(selected_team, match_id)
         
-  
 
     # Sexta pestaña
     with shot_map_tab:

@@ -57,6 +57,12 @@ def load_events(selected_competition):
         st.error(f"Error loading events: {e}")
         st.stop()
 
+
+@st.cache_data
+def load_events_for_match(selected_competition, match_id):
+    events = load_events(selected_competition)
+    return events[events["match_id"] == match_id]
+
 # Menú lateral
 st.sidebar.header("🏆 Football Championships")
 
@@ -83,8 +89,8 @@ selected_team = st.sidebar.selectbox("Select a team", team_list)
 eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
 copa_america["match_teams"] = "(" + copa_america['competition_stage'] + ") " + copa_america["home_team"] + " " + copa_america['home_score'].astype(str) + " - " + copa_america['away_score'].astype(str) + " " + copa_america["away_team"]
 
-# Filtrar partidos donde el equipo haya jugado
-team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)]
+# Filtrar partidos donde el equipo haya jugado y mostrarlos en orden cronológico
+team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)].sort_values(by="match_date", ascending=True)
 
 # Ver partidos del equipo seleccionado
 df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
@@ -125,9 +131,6 @@ def filter_passes(player, match_id):
     unsuccessful_passes = player_passes[player_passes["pass_outcome"].notnull()]  # Fallidos tienen outcome "Incomplete"
 
     return successful_passes, unsuccessful_passes
-
-
-
 
 
 @st.cache_data
@@ -190,7 +193,7 @@ def filter_pass_network(team, match_id):
     successful = pd.merge(successful, jersey_data, on='pass_recipient_id')
     successful.rename(columns={'jersey_number': 'recipient'}, inplace=True)
 
-    # Crear diccionario dorsal-nombre
+    # Diccionario dorsal-nombre para la leyenda
     dorsal_to_name = dict(zip(successful['passer'], successful['player_nickname_x']))
 
     # Media de las ubicaciones
@@ -239,23 +242,17 @@ def pass_network(team, match_id):
         # Dorsal
         pitch.annotate(index, xy=(x, y), c='white', va='center',
                     ha='center', fontweight='bold', size=13, ax=ax)
-        
     
-    # Añadir leyenda a la derecha con nombres y dorsales
+    # Leyenda a la derecha con nombres y dorsales
     sorted_dorsals = sorted(dorsal_to_name.keys())
     legend_text = "\n".join([f"{dorsal}: {dorsal_to_name[dorsal]}" for dorsal in sorted_dorsals])
     ax.text(125, 40, legend_text, fontsize=12, color='white', va='center', ha='left', linespacing=2.5)
 
-    # De 0 a 5 pases un color
-    # de 6 a 10 otro color, etc
-
-    # Añadir leyenda
+    # Leyenda izquierda
     legend_elements = [
         Line2D([0], [0], color='white', lw=4, label='More passes between players (thicker line)'),
         Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', markerfacecolor='red', markeredgecolor='black', markersize=12)
     ]
-    
-    # Leyenda
     ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.022, 1))
 
     # Título
@@ -266,11 +263,8 @@ def pass_network(team, match_id):
 
 @st.cache_data
 def filter_heatmap(team, match_id):
-    # Obtener los eventos del partido seleccionado
-    events = load_events(selected_competition)
-
     # Filtrar eventos del partido seleccionado
-    match_events = events[events["match_id"] == match_id]
+    match_events = load_events_for_match(selected_competition, match_id)
 
     # Filtrar pases del equipo seleccionado
     team_passes = match_events[(match_events["type"] == "Pass") & (match_events["team"] == team)].copy()
@@ -326,11 +320,8 @@ def heatmap(team, match_id):
 
 @st.cache_data
 def filter_shots(team, match_id):
-    # Obtener los eventos del partido seleccionado
-    events = load_events(selected_competition)
-
     # Filtrar eventos del partido seleccionado
-    match_events = events[events["match_id"] == match_id]
+    match_events = load_events_for_match(selected_competition, match_id)
 
     # Filtrar tiros
     shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
@@ -340,6 +331,7 @@ def filter_shots(team, match_id):
 
     return shots
 
+
 def shot_map(team, match_id):
     # Obtener los tiros del equipo
     shots = filter_shots(team, match_id)
@@ -348,7 +340,7 @@ def shot_map(team, match_id):
     shots = shots[shots["shot_type"] != "Penalty"]
 
     # Crear el campo de fútbol en orientación vertical
-    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True)
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, pad_bottom=-10)
     fig, ax = pitch.draw(figsize=(10, 10), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
@@ -392,6 +384,69 @@ def shot_map(team, match_id):
     # Mostrar el gráfico
     st.pyplot(fig)
 
+"""def shot_map(team, match_id):
+
+    shots = filter_shots(team, match_id)
+    # Excluir los penaltis
+    shots = shots[shots["shot_type"] != "Penalty"]
+
+    # Seaparar las coordenadas
+    x = [loc[0] for loc in shots['location']]
+    y = [loc[1] for loc in shots['location']]
+    xg = shots['shot_statsbomb_xg']
+    outcomes = shots['shot_outcome']
+
+    fig = go.Figure()
+
+    for i, shot in shots.iterrows():
+        is_goal = shot['shot_outcome'] == 'Goal'
+        fig.add_trace(go.Scatter(
+            x=[shot['location'][0]],
+            y=[shot['location'][1]],
+            mode='markers',
+            marker=dict(
+                size=15 + 40 * shot['shot_statsbomb_xg'],
+                color='green' if is_goal else 'red',
+                opacity=1 if is_goal else 0.6,
+                symbol='circle' if is_goal else 'x',
+                line=dict(color='black', width=1)
+            ),
+            hovertemplate=f"Player: {shot['player']}<br>xG: {shot['shot_statsbomb_xg']:.2f}<br>Outcome: {shot['shot_outcome']}<extra></extra>"
+        ))
+
+    # Añadir líneas del campo StatsBomb
+    shapes = [
+        # Área grande
+        dict(type="rect", x0=102, y0=18, x1=120, y1=62, line=dict(color="white")),
+        # Área pequeña
+        dict(type="rect", x0=102, y0=30, x1=120, y1=50, line=dict(color="white")),
+        # Punto de penalti
+        dict(type="circle", x0=114-0.5, y0=40-0.5, x1=114+0.5, y1=40+0.5, line=dict(color="white")),
+        # Semicírculo del área
+        dict(type="path",
+             path="M 102 32 A 8 8 0 0 1 102 48",
+             line=dict(color="white")),
+        # Portería
+        dict(type="rect", x0=120, y0=36, x1=122, y1=44, line=dict(color="white"))
+    ]
+
+    # Configurar media cancha estilo StatsBomb
+    fig.update_layout(
+        title=f"{team}'s Shots (Interactive)",
+        shapes=shapes,
+        xaxis=dict(range=[100, 120], showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(range=[0, 80], showgrid=False, zeroline=False, visible=False),
+        plot_bgcolor='white',
+        height=600,
+        width=800,
+        margin=dict(t=40, b=20, l=20, r=20)
+    )
+
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    fig.update_layout(showlegend=False)
+
+    st.plotly_chart(fig)"""
+
 
 def main():
     st.title("⚽ CoolStat Streamlit App")
@@ -400,12 +455,9 @@ def main():
 
     st.subheader(f"📊 {selected_competition} 2024 Statistics")
 
-    # Obtener los eventos del partido seleccionado
-    events = load_events(selected_competition)
-
     # Filtrar eventos del partido seleccionado
     match_id = match_details["match_id"].values[0]
-    match_events = events[events["match_id"] == match_id]
+    match_events = load_events_for_match(selected_competition, match_id)
 
     match_report, data_tab, heatmap_tab, pass_map_tab, pass_network_tab, shot_map_tab = st.tabs(['Match Report', 
                                                                                                     'Lineups',

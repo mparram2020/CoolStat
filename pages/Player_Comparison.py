@@ -126,7 +126,6 @@ if st.session_state.posicion_seleccionada:
     st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
     if st.button("Compare Players", use_container_width=True):
         st.write(f"Comparing {st.session_state.posicion_seleccionada}s {player1} and {player2}...")
-        st.progress(100)
 
         # Explicación de las métricas
         st.info("ℹ️ Metrics with '/90s' indicate that the values are normalized per 90 minutes played. This allows fair comparisons between players with different amounts of playing time.")

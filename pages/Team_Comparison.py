@@ -9,11 +9,11 @@ st.title("Dashboard de estadísticas")
 # Selección de competición
 competition = st.radio("Competición", ["Eurocopa", "Copa América"], index=0)
 
-# Selector de estadísticas
-selected_stat = st.selectbox("Selecciona una estadística", ["Goals-xG per 90'", "Top Scorers", "Most Asists", "Bundesliga", "Ligue 1"], index=0)
+# Selección de estadística
+selected_stat = st.selectbox("Selecciona una estadística", ["Shooting", "Goalkeeping", "Advanced Goalkeeping", "Passing", "Goal Shot Creation"], index=0)
 
-# Mostrar iframe solo si coincide
-if selected_stat == "Goals-xG per 90'":
+# Mostrar visualizciones según la estadística seleccionada
+if selected_stat == "Shooting":
     if competition == "Eurocopa":
         components.iframe(
             "https://public.tableau.com/views/Book2_17464506741000/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
@@ -29,21 +29,74 @@ if selected_stat == "Goals-xG per 90'":
             scrolling=True
         )
 
-st.info("Este dashboard muestra las estadísticas de goles y xG normalizadas por 90 minutos.")
+    st.info("Explanation of the Shooting dashboard.")
 
-"""elif selected_stat == "Top Scorers":
+elif selected_stat == "Goalkeeping":
     if competition == "Eurocopa":
         components.iframe(
-            "",
+            "https://public.tableau.com/views/Euro_Goalkeeping/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
             height=600,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
-            "",
+            "https://public.tableau.com/views/CopaAmerica_Goalkeeping/GA90-Saves?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
             height=600,
             scrolling=True
         )
-    st.info("Este dashboard muestra los máximos goleadores de la competición seleccionada.")"""
+    st.info("Explanation of the Goalkeeping dashboard.")
+
+elif selected_stat == "Advanced Goalkeeping":
+    if competition == "Eurocopa":
+        components.iframe(
+            "https://public.tableau.com/views/Euro_AdvancedGoalkeeping/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+    elif competition == "Copa América":
+        components.iframe(
+            "https://public.tableau.com/views/CopaAmerica_AdvancedGoalkeeping/BarbellPSxG-GA?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+
+    st.info("Explanation of the Advanced Goalkeeping dashboard.")
+
+elif selected_stat == "Passing":
+    if competition == "Eurocopa":
+        components.iframe(
+            "https://public.tableau.com/views/Euro_Passes/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+    elif competition == "Copa América":
+        components.iframe(
+            "https://public.tableau.com/views/CopaAmerica_Passes/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+    st.info("Explanation of the Passing dashboard.")
+
+
+elif selected_stat == "Goal Shot Creation":
+    if competition == "Eurocopa":
+        components.iframe(
+            "https://public.tableau.com/views/Euro_GoalAndShotCreation/GCA-SCA90?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+    elif competition == "Copa América":
+        components.iframe(
+            "https://public.tableau.com/views/CopaAmerica_GoalAndShotCreation/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
+            width=1800,
+            height=600,
+            scrolling=True
+        )
+    st.info("Explanation of the Goal Shot Creation dashboard.")

@@ -30,7 +30,7 @@ def load_data():
 
 # Cargar alineaciones
 @st.cache_data
-def load_lineups():
+def load_lineups(selected_competition):
     try:
         if selected_competition == "UEFA Euro":
             lineups = pd.read_csv("data/euro_lineups.csv")
@@ -56,12 +56,6 @@ def load_events(selected_competition):
     except FileNotFoundError as e:
         st.error(f"Error loading events: {e}")
         st.stop()
-
-
-@st.cache_data
-def load_events_for_match(selected_competition, match_id):
-    events = load_events(selected_competition)
-    return events[events["match_id"] == match_id]
 
 # Menú lateral
 st.sidebar.header("🏆 Football Championships")
@@ -89,7 +83,7 @@ selected_team = st.sidebar.selectbox("Select a team", team_list)
 eurocopa["match_teams"] = "(" + eurocopa['competition_stage'] + ") " + eurocopa["home_team"] + " " + eurocopa['home_score'].astype(str) + " - " + eurocopa['away_score'].astype(str) + " " + eurocopa["away_team"]
 copa_america["match_teams"] = "(" + copa_america['competition_stage'] + ") " + copa_america["home_team"] + " " + copa_america['home_score'].astype(str) + " - " + copa_america['away_score'].astype(str) + " " + copa_america["away_team"]
 
-# Filtrar partidos donde el equipo haya jugado y mostrarlos en orden cronológico
+# Filtrar partidos donde el equipo haya jugado
 team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df_selected["away_team"] == selected_team)].sort_values(by="match_date", ascending=True)
 
 # Ver partidos del equipo seleccionado
@@ -193,7 +187,7 @@ def filter_pass_network(team, match_id):
     successful = pd.merge(successful, jersey_data, on='pass_recipient_id')
     successful.rename(columns={'jersey_number': 'recipient'}, inplace=True)
 
-    # Diccionario dorsal-nombre para la leyenda
+    # Crear diccionario dorsal-nombre
     dorsal_to_name = dict(zip(successful['passer'], successful['player_nickname_x']))
 
     # Media de las ubicaciones
@@ -242,17 +236,20 @@ def pass_network(team, match_id):
         # Dorsal
         pitch.annotate(index, xy=(x, y), c='white', va='center',
                     ha='center', fontweight='bold', size=13, ax=ax)
+        
     
-    # Leyenda a la derecha con nombres y dorsales
+    # Añadir leyenda a la derecha con nombres y dorsales
     sorted_dorsals = sorted(dorsal_to_name.keys())
     legend_text = "\n".join([f"{dorsal}: {dorsal_to_name[dorsal]}" for dorsal in sorted_dorsals])
-    ax.text(125, 40, legend_text, fontsize=12, color='white', va='center', ha='left', linespacing=2.5)
+    ax.text(125, 40, legend_text, fontsize=13, color='white', va='center', ha='left', linespacing=2.5)
 
-    # Leyenda izquierda
+    # Añadir leyenda
     legend_elements = [
         Line2D([0], [0], color='white', lw=4, label='More passes between players (thicker line)'),
         Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', markerfacecolor='red', markeredgecolor='black', markersize=12)
     ]
+    
+    # Leyenda
     ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.022, 1))
 
     # Título
@@ -263,8 +260,11 @@ def pass_network(team, match_id):
 
 @st.cache_data
 def filter_heatmap(team, match_id):
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+
     # Filtrar eventos del partido seleccionado
-    match_events = load_events_for_match(selected_competition, match_id)
+    match_events = events[events["match_id"] == match_id]
 
     # Filtrar pases del equipo seleccionado
     team_passes = match_events[(match_events["type"] == "Pass") & (match_events["team"] == team)].copy()
@@ -320,8 +320,11 @@ def heatmap(team, match_id):
 
 @st.cache_data
 def filter_shots(team, match_id):
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+
     # Filtrar eventos del partido seleccionado
-    match_events = load_events_for_match(selected_competition, match_id)
+    match_events = events[events["match_id"] == match_id]
 
     # Filtrar tiros
     shots = match_events[(match_events["type"] == "Shot") & (match_events["team"] == team)].reset_index(drop=True).copy()
@@ -331,7 +334,6 @@ def filter_shots(team, match_id):
 
     return shots
 
-
 def shot_map(team, match_id):
     # Obtener los tiros del equipo
     shots = filter_shots(team, match_id)
@@ -340,7 +342,7 @@ def shot_map(team, match_id):
     shots = shots[shots["shot_type"] != "Penalty"]
 
     # Crear el campo de fútbol en orientación vertical
-    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, pad_bottom=-10)
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, goal_type='box', line_color='#f1f1f1')
     fig, ax = pitch.draw(figsize=(10, 10), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
@@ -351,7 +353,7 @@ def shot_map(team, match_id):
             x=shot['location'][0],
             y=shot['location'][1],
             ax=ax,
-            s=2000 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
+            s=1500 * shot['shot_statsbomb_xg'],  # Tamaño proporcional al xG
             color='green' if is_goal else 'red',  # Verde si es gol, rojo si fallo
             edgecolors='black',
             alpha=1 if is_goal else 0.6,  # Opacidad mayor si es gol
@@ -360,92 +362,29 @@ def shot_map(team, match_id):
             zorder=1 if is_goal else 1.5  # Z-order para superposición
         )
 
-    # Leyenda
-    legend_elements = [
+    # Leyenda izquierda
+    legend1_elements = [
         Line2D([0], [0], marker='o', color='w', label='Goal', markerfacecolor='green', markeredgecolor='black', markersize=10),
         Line2D([0], [0], marker='x', color='w', label='Miss', markeredgecolor='red', markersize=10),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=7),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=12),
-        #Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=17),
     ]
 
-    ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='white', edgecolor='black')
+    # Leyenda derecha
+    legend2_elements = [
+        Line2D([0], [0], marker='o', color='w', label='xG: 0.1', markerfacecolor='gray', markersize=8, markeredgecolor='black'),
+        Line2D([0], [0], marker='o', color='w', label='xG: 0.3', markerfacecolor='gray', markersize=13, markeredgecolor='black'),
+        Line2D([0], [0], marker='o', color='w', label='xG: 0.5', markerfacecolor='gray', markersize=18, markeredgecolor='black'),
+    ]
 
+    legend1 = ax.legend(handles=legend1_elements, loc='upper left', fontsize=12, facecolor='white', edgecolor='black')
+    ax.add_artist(legend1)
+
+    legend2 = ax.legend(handles=legend2_elements, loc='upper right', fontsize=12, facecolor='white', edgecolor='black')
+
+    # Título
     ax.set_title(f"{team}'s shots", x=0.5, y=1.03, fontsize=17, color='black')
-    ax.text(x=0.3, y=0.96, s='Lower xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)
-    ax.text(x=0.7, y=0.96, s='Higher xG', fontsize=11, color='white', ha='center', transform=ax.transAxes)  # Texto "Mayor xG" a la derecha de "Menor xG"
-
-    # Círculos entre "Menor xG" y "Mayor xG"
-    circle_positions = [0.38, 0.46, 0.54, 0.62]  # Posiciones horizontales
-    circle_sizes = [40, 90, 140, 190]
-    for pos, size in zip(circle_positions, circle_sizes):
-        ax.scatter(x=pos, y=0.97, s=size, facecolor='none', edgecolor='white', transform=ax.transAxes)
     
     # Mostrar el gráfico
     st.pyplot(fig)
-
-"""def shot_map(team, match_id):
-
-    shots = filter_shots(team, match_id)
-    # Excluir los penaltis
-    shots = shots[shots["shot_type"] != "Penalty"]
-
-    # Seaparar las coordenadas
-    x = [loc[0] for loc in shots['location']]
-    y = [loc[1] for loc in shots['location']]
-    xg = shots['shot_statsbomb_xg']
-    outcomes = shots['shot_outcome']
-
-    fig = go.Figure()
-
-    for i, shot in shots.iterrows():
-        is_goal = shot['shot_outcome'] == 'Goal'
-        fig.add_trace(go.Scatter(
-            x=[shot['location'][0]],
-            y=[shot['location'][1]],
-            mode='markers',
-            marker=dict(
-                size=15 + 40 * shot['shot_statsbomb_xg'],
-                color='green' if is_goal else 'red',
-                opacity=1 if is_goal else 0.6,
-                symbol='circle' if is_goal else 'x',
-                line=dict(color='black', width=1)
-            ),
-            hovertemplate=f"Player: {shot['player']}<br>xG: {shot['shot_statsbomb_xg']:.2f}<br>Outcome: {shot['shot_outcome']}<extra></extra>"
-        ))
-
-    # Añadir líneas del campo StatsBomb
-    shapes = [
-        # Área grande
-        dict(type="rect", x0=102, y0=18, x1=120, y1=62, line=dict(color="white")),
-        # Área pequeña
-        dict(type="rect", x0=102, y0=30, x1=120, y1=50, line=dict(color="white")),
-        # Punto de penalti
-        dict(type="circle", x0=114-0.5, y0=40-0.5, x1=114+0.5, y1=40+0.5, line=dict(color="white")),
-        # Semicírculo del área
-        dict(type="path",
-             path="M 102 32 A 8 8 0 0 1 102 48",
-             line=dict(color="white")),
-        # Portería
-        dict(type="rect", x0=120, y0=36, x1=122, y1=44, line=dict(color="white"))
-    ]
-
-    # Configurar media cancha estilo StatsBomb
-    fig.update_layout(
-        title=f"{team}'s Shots (Interactive)",
-        shapes=shapes,
-        xaxis=dict(range=[100, 120], showgrid=False, zeroline=False, visible=False),
-        yaxis=dict(range=[0, 80], showgrid=False, zeroline=False, visible=False),
-        plot_bgcolor='white',
-        height=600,
-        width=800,
-        margin=dict(t=40, b=20, l=20, r=20)
-    )
-
-    fig.update_yaxes(scaleanchor="x", scaleratio=1)
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig)"""
 
 
 def main():
@@ -455,9 +394,12 @@ def main():
 
     st.subheader(f"📊 {selected_competition} 2024 Statistics")
 
+    # Obtener los eventos del partido seleccionado
+    events = load_events(selected_competition)
+
     # Filtrar eventos del partido seleccionado
     match_id = match_details["match_id"].values[0]
-    match_events = load_events_for_match(selected_competition, match_id)
+    match_events = events[events["match_id"] == match_id]
 
     match_report, data_tab, heatmap_tab, pass_map_tab, pass_network_tab, shot_map_tab = st.tabs(['Match Report', 
                                                                                                     'Lineups',
@@ -493,7 +435,7 @@ def main():
         away_shootout_goals = shootout_goals[shootout_goals["team"] == match_details.iloc[0]["away_team"]].shape[0]
 
 
-        col1, col2, col3, col4, col5, col6 = st.columns([1, 0.8, 0.4, 0.4, 0.7, 0.9])
+        col1, col2, col3, col4, col5, col6 = st.columns([1, 0.9, 0.4, 0.4, 0.8, 0.8])
         with col1:
             # Local
             st.markdown(f"<h4 style='text-align: center;'>{match_details.iloc[0]['home_team']}</h4>", unsafe_allow_html=True)
@@ -598,7 +540,7 @@ def main():
     # Segunda pestaña
     with data_tab:
         # Cargar las alineaciones
-        lineups = load_lineups()
+        lineups = load_lineups(selected_competition)
 
         # Filtrar por el partido seleccionado usando match_id y quitar el índice
         match_id = match_details["match_id"].values[0]
@@ -630,7 +572,6 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            #st.image("")
             st.write("")
             st.markdown(f"<h4>{home_team} Starting XI</h4>", unsafe_allow_html=True)
             df = home_team_starting[["jersey_number", "player_name"]]

@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import ast
 
 # Configuración de la página
-st.set_page_config(page_title="CoolStat", page_icon="logo.png", layout="wide")
+st.set_page_config(page_title="CoolStat", page_icon="logo.jpg", layout="wide")
 
 # Cargar datos
 @st.cache_data
@@ -341,8 +341,8 @@ def shot_map(team, match_id):
     # Excluir los penaltis
     shots = shots[shots["shot_type"] != "Penalty"]
 
-    # Crear el campo de fútbol en orientación vertical
-    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, goal_type='box', line_color='#f1f1f1')
+    # Crear el campo de fútbol vertical
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, goal_type='box', line_color='#eeeeee')
     fig, ax = pitch.draw(figsize=(10, 10), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
@@ -378,7 +378,7 @@ def shot_map(team, match_id):
     legend1 = ax.legend(handles=legend1_elements, loc='upper left', fontsize=12, facecolor='white', edgecolor='black')
     ax.add_artist(legend1)
 
-    legend2 = ax.legend(handles=legend2_elements, loc='upper right', fontsize=12, facecolor='white', edgecolor='black')
+    ax.legend(handles=legend2_elements, loc='upper right', fontsize=12, facecolor='white', edgecolor='black')
 
     # Título
     ax.set_title(f"{team}'s shots", x=0.5, y=1.03, fontsize=17, color='black')

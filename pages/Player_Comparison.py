@@ -11,7 +11,7 @@ import faiss
 
 
 # Configuración de la página
-st.set_page_config(page_title="Player Comparison", page_icon="logo.png", layout="wide")
+st.set_page_config(page_title="Player Comparison", page_icon="logo.jpg", layout="wide")
 
 @st.cache_data
 def load_data():

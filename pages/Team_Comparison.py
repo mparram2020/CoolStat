@@ -64,9 +64,8 @@ elif selected_stat == "Advanced Goalkeeping":
 
 elif selected_stat == "Defensive":
     with st.expander("ℹ️ Explanation of the Defensive dashboard"):
-                         
             st.markdown("""
-            Scatter plot and bar graph of the defensive performance of the players in the Eurocopa and Copa América.
+            Scatter plot and bar graph of the teams' defensive performance.
             - The scatter plot shows the relationship between tackles done and tackles won.
             - The bar chart shows in which area of the pitch each team has made their tackles.
             """)
@@ -88,7 +87,13 @@ elif selected_stat == "Defensive":
 
 
 elif selected_stat == "Passing":
-    st.info("Explanation of the Passing dashboard.")
+    with st.expander("ℹ️ Explanation of the Passing dashboard."):           
+        st.markdown("""
+                Scatter plot and bar graph of the teams' passing performance.
+                - The scatter plot shows the passing accuracy.
+                - The bar chart shows the percentage of passes completed in the final third,
+                    key passes and passes into the penalty area.
+                """)
     if competition == "Eurocopa":
         components.iframe(
             "https://public.tableau.com/views/Euro_Passes/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
@@ -105,9 +110,14 @@ elif selected_stat == "Passing":
         )
     
 
-
 elif selected_stat == "Goal Shot Creation":
-    st.info("Explanation of the Goal Shot Creation dashboard.")
+    with st.expander("ℹ️ Explanation of the Goal Shot Creation dashboard."):
+        st.markdown("""
+            Scatter plot of the goal shot creation performance of the teams.
+            - The x-axis represents the two offensive actions directly leading to a goal
+            - The y-axis represents the two offensive actions directly leading to a shot.
+            """)
+
     if competition == "Eurocopa":
         components.iframe(
             "https://public.tableau.com/views/Euro_GoalAndShotCreation/GCA-SCA90?:embed=true&:display_count=yes&:showVizHome=no",
@@ -124,7 +134,13 @@ elif selected_stat == "Goal Shot Creation":
         )
 
 elif selected_stat == "Shooting":
-    st.info("Explanation of the Shooting dashboard.")
+    with st.expander("ℹ️ Explanation of the Shooting dashboard."):
+        st.markdown("""
+            Scatter plot of the shooting performance of the teams.
+            - The x-axis represents the expected goals (xG) normalized per 90 minutes.
+            - The y-axis represents the goals scored normalized per 90 minutes.
+            """)
+
     if competition == "Eurocopa":
         components.iframe(
             "https://public.tableau.com/views/Book2_17464506741000/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",

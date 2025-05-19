@@ -26,7 +26,7 @@ def load_data():
 
 
 st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
-st.write("Select the position of the players to compare:")
+st.write("Select the position of the players to make a comparison:")
 
 # Cargar los datos
 euro_goalkeepers, euro_players = load_data()
@@ -268,6 +268,6 @@ if st.session_state.posicion_seleccionada:
                         unsafe_allow_html=True)
 
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-        st.info ("ℹ️ The similarity score is calculated using the Euclidean distance between the players' statistics. A greater score indicates greater similarity.")
+        st.info ("ℹ️ Similarity score is calculated using the Euclidean distance between the players' statistics. A greater score indicates greater similarity.")
         
         

@@ -650,7 +650,9 @@ def main():
 
     # Quinta pestaña
     with pass_network_tab:
-        st.info("ℹ️ This passing network shows the connections between the starting players before the first substitution.")
+        with st.expander("ℹ️ Explanation of the pass network"):
+            st.markdown("The metric shows where the team makes their most passes, the players involved in those passes, "
+                        "and whom the player passes the most and the least. It indicates connections only among the starting players before the first substitution.")
 
         selected_team = st.radio("Select a team:", [home_team, away_team], key="pass_network_team")
 
@@ -671,11 +673,11 @@ def main():
         ]
 
         # Explicación del xG
-        st.info((
-            "ℹ️ xG (Expected Goals) is a metric that estimates the quality of a shot based on various factors such as "
-            "distance from goal, angle, and type of shot. A higher xG value indicates a better chance of scoring."
-        ))
-        
+        with st.expander("ℹ️ Explanation of the shot map"):
+            st.markdown("ℹ️ xG (Expected Goals) is a metric that estimates the quality of a shot based on various factors such as "
+                        "distance from goal, angle, and type of shot. A higher xG value indicates a better chance of scoring."
+            )
+
         col1, col2 = st.columns(2)
 
         with col1:

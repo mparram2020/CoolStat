@@ -5,9 +5,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Team Comparison", page_icon="logo.jpg", layout="wide")
 
 # Selección de competición
-competition = st.radio("Select a competition", ["Eurocopa", "Copa América"], index=0)
-
-st.write("")
+competition = st.radio("Select a competition", ["Eurocopa", "Copa América"], index=None)
 
 # Selección de estadística
 selected_stat = st.selectbox("Select a statistic", ["Goalkeeping", "Advanced Goalkeeping", "Defensive", 
@@ -16,7 +14,6 @@ selected_stat = st.selectbox("Select a statistic", ["Goalkeeping", "Advanced Goa
 # Mostrar visualizciones según la estadística seleccionada
 if selected_stat == "Goalkeeping":
     with st.expander("ℹ️ Explanation of the Goalkeeping dashboard"):
-                         
             st.markdown("""
             Scatter plot of the goalkeeper's performance in the Eurocopa and Copa América.
             - The x-axis represents the goals conceeded normalized per 90 minutes
@@ -27,21 +24,20 @@ if selected_stat == "Goalkeeping":
         components.iframe(
             "https://public.tableau.com/views/Euro_Goalkeeping/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/CopaAmerica_Goalkeeping/GA90-Saves?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
-    
+
 
 elif selected_stat == "Advanced Goalkeeping":
-    with st.expander("ℹ️ Explanation of the Advanced Goalkeeping dashboard"):
-                         
+    with st.expander("ℹ️ Explanation of the Advanced Goalkeeping dashboard"):           
             st.markdown("""
             Barbell chart that compares the goals conceeded (GA) with the post-shot expected goals (PSxG)
             - A positive value indicates a good performance, while a negative value indicates a poor performance.
@@ -51,14 +47,14 @@ elif selected_stat == "Advanced Goalkeeping":
         components.iframe(
             "https://public.tableau.com/views/Euro_AdvancedGoalkeeping/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/CopaAmerica_AdvancedGoalkeeping/BarbellPSxG-GA?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
 
@@ -74,14 +70,14 @@ elif selected_stat == "Defensive":
         components.iframe(
             "https://public.tableau.com/views/Euro_Defensive/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/CopaAmerica_Defensive/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
 
@@ -98,14 +94,14 @@ elif selected_stat == "Passing":
         components.iframe(
             "https://public.tableau.com/views/Euro_Passes/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/CopaAmerica_Passes/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     
@@ -122,14 +118,14 @@ elif selected_stat == "Goal Shot Creation":
         components.iframe(
             "https://public.tableau.com/views/Euro_GoalAndShotCreation/GCA-SCA90?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/CopaAmerica_GoalAndShotCreation/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
 
@@ -145,14 +141,14 @@ elif selected_stat == "Shooting":
         components.iframe(
             "https://public.tableau.com/views/Book2_17464506741000/Dashboard1?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
     elif competition == "Copa América":
         components.iframe(
             "https://public.tableau.com/views/Book3_17464790157420/ScatterPlotGoalsxGnormalizedper90?:embed=true&:display_count=yes&:showVizHome=no",
             width=1800,
-            height=600,
+            height=1000,
             scrolling=True
         )
 

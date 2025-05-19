@@ -6,10 +6,12 @@ networkx
 numpy
 pandas
 plotly
+psycopg2-binary
 requests
 seaborn
 scikit-learn
 scipy
 soccerplots
+sqlalchemy
 statsbombpy
 streamlit

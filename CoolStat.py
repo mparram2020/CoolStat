@@ -12,19 +12,40 @@ from scipy.stats import gaussian_kde
 import plotly.express as px
 import plotly.graph_objects as go
 import ast
+from sqlalchemy import create_engine
 
 # Configuración de la página
 st.set_page_config(page_title="CoolStat", page_icon="logo.jpg", layout="wide")
+
+# Crear conexión a la base de datos
+engine = create_engine("postgresql://postgres:postgres@localhost:5432/coolstat")
+
+# Cargar eurocopa_datos.csv
+# df = pd.read_csv('data/eurocopa_datos.csv')
+# df.to_sql('eurocopa_datos', engine, if_exists='replace', index=False)
+
+# Cargar el resto de archivos CSV
+#files = [
+#    'data/euro_lineups.csv',
+#    'data/euro_all_events.csv',
+#    'data/copa_america_datos.csv',
+#    'data/copa_america_lineups.csv',
+#    'data/copa_america_all_events.csv'
+#]
+#for file in files:
+#    df = pd.read_csv(file)
+#    table_name = file.split('/')[-1].replace('.csv', '')
+#    df.to_sql(table_name, engine, if_exists='replace', index=False)
 
 # Cargar datos
 @st.cache_data
 def load_data():
     try:
-        eurocopa = pd.read_csv("data/eurocopa_datos.csv")
-        copa_america = pd.read_csv("data/copa_america_datos.csv")
+        eurocopa = pd.read_sql('SELECT * FROM eurocopa_datos', engine)
+        copa_america = pd.read_sql('SELECT * FROM copa_america_datos', engine)
         return eurocopa, copa_america
     
-    except FileNotFoundError as e:
+    except Exception as e:
         st.error(f"Error loading data: {e}")
         st.stop()
 
@@ -33,13 +54,11 @@ def load_data():
 def load_lineups(selected_competition):
     try:
         if selected_competition == "UEFA Euro":
-            lineups = pd.read_csv("data/euro_lineups.csv")
+            return pd.read_sql('SELECT * FROM euro_lineups', engine)
         else:
-            lineups = pd.read_csv("data/copa_america_lineups.csv")
-        
-        return lineups
+            return pd.read_sql('SELECT * FROM copa_america_lineups', engine)
 
-    except FileNotFoundError as e:
+    except Exception as e:
         st.error(f"Error loading lineups: {e}")
         st.stop()
 
@@ -47,13 +66,11 @@ def load_lineups(selected_competition):
 def load_events(selected_competition):
     try:
         if selected_competition == "UEFA Euro":
-            events = pd.read_csv("data/euro_all_events.csv", low_memory=False)
+            return pd.read_sql('SELECT * FROM euro_all_events', engine)
         else:
-            events = pd.read_csv("data/copa_america_all_events.csv", low_memory=False)
-        
-        return events
-    
-    except FileNotFoundError as e:
+            return pd.read_sql('SELECT * FROM copa_america_all_events', engine)
+
+    except Exception as e:
         st.error(f"Error loading events: {e}")
         st.stop()
 
@@ -76,7 +93,7 @@ selected_competition = st.sidebar.selectbox("Select a competition", competition_
 df_selected = eurocopa if selected_competition in eurocopa["competition"].unique() else copa_america
     
 # Lista de equipos ordenada alfabéticamente
-team_list = sorted(df_selected["home_team"].unique().tolist())
+team_list = sorted(set(df_selected["home_team"].unique()) | set(df_selected["away_team"].unique()))
 selected_team = st.sidebar.selectbox("Select a team", team_list)
 
 # Crear nueva columna con los equipos del partido
@@ -90,8 +107,6 @@ team_matches = df_selected.loc[(df_selected["home_team"] == selected_team) | (df
 df_selected_match = st.sidebar.selectbox("Select a match", team_matches["match_teams"].unique())
 match_details = team_matches[team_matches["match_teams"] == df_selected_match]
 
-
-@st.cache_data
 def load_passes(match_id):
     # Obtener los eventos del partido seleccionado
     events = load_events(selected_competition)
@@ -342,7 +357,7 @@ def shot_map(team, match_id):
     shots = shots[shots["shot_type"] != "Penalty"]
 
     # Crear el campo de fútbol vertical
-    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, goal_type='box', line_color='#eeeeee')
+    pitch = VerticalPitch(pitch_type='statsbomb', pitch_color='grass', half=True, goal_type='box', line_color='#d8d8d8')
     fig, ax = pitch.draw(figsize=(10, 10), constrained_layout=True, tight_layout=False)
 
     # Dibujar los tiros
@@ -556,17 +571,17 @@ def main():
 
         # Jugadores que salieron de inicio
         home_team_starting = home_team_lineup[
-            home_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+            home_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in ast.literal_eval(pos)))].reset_index(drop=True)
 
         away_team_starting = away_team_lineup[
-            away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+            away_team_lineup["positions"].apply(lambda pos: any(d.get("from") == "00:00" for d in ast.literal_eval(pos)))].reset_index(drop=True)
 
         # Jugadores restantes
         home_team_subs = home_team_lineup[
-            home_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
-        
+            home_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in ast.literal_eval(pos)))].reset_index(drop=True)
+
         away_team_subs = away_team_lineup[
-            away_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in eval(pos)))].reset_index(drop=True)
+            away_team_lineup["positions"].apply(lambda pos: not any(d.get("from") == "00:00" for d in ast.literal_eval(pos)))].reset_index(drop=True)
 
         # Mostrar en columnas
         col1, col2 = st.columns(2)
@@ -622,12 +637,12 @@ def main():
     with pass_map_tab:
 
         home_team_played = home_team_lineup[
-            home_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+            home_team_lineup["positions"].apply(lambda pos: len(ast.literal_eval(pos)) > 0)
         ]
         
         away_team_played = away_team_lineup[
-            away_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
-        ]   
+            away_team_lineup["positions"].apply(lambda pos: len(ast.literal_eval(pos)) > 0)
+        ]
 
         col1, col2 = st.columns(2)
 
@@ -665,11 +680,11 @@ def main():
     # Sexta pestaña
     with shot_map_tab:
         home_team_played = home_team_lineup[
-            home_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+            home_team_lineup["positions"].apply(lambda pos: len(ast.literal_eval(pos)) > 0)
         ]
         
         away_team_played = away_team_lineup[
-            away_team_lineup["positions"].apply(lambda pos: len(eval(pos)) > 0)
+            away_team_lineup["positions"].apply(lambda pos: len(ast.literal_eval(pos)) > 0)
         ]
 
         # Explicación del xG

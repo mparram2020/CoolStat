@@ -1,4 +1,5 @@
-from io import BytesIO
+import os
+from dotenv import load_dotenv
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize, to_rgba
 from matplotlib.lines import Line2D
@@ -9,16 +10,18 @@ import matplotlib.pyplot as plt
 from mplsoccer import Pitch, VerticalPitch, Sbopen
 from statsbombpy import sb
 from scipy.stats import gaussian_kde
-import plotly.express as px
-import plotly.graph_objects as go
 import ast
 from sqlalchemy import create_engine
 
 # Configuración de la página
 st.set_page_config(page_title="CoolStat", page_icon="logo.jpg", layout="wide")
 
+# Cargar variables de entorno
+load_dotenv()
+
 # Crear conexión a la base de datos
-engine = create_engine("postgresql://postgres:postgres@localhost:5432/coolstat")
+DATABASE_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+engine = create_engine(DATABASE_URL)
 
 # Cargar eurocopa_datos.csv
 # df = pd.read_csv('data/eurocopa_datos.csv')

@@ -32,6 +32,9 @@ st.write("Select the position of the players to make a comparison:")
 euro_goalkeepers, euro_players = load_data()
 euro_stats = pd.concat([euro_goalkeepers, euro_players], ignore_index=True)
 
+# Reemplazar valores 0 por NaN en la columna '90s'
+euro_stats['90s'] = euro_stats['90s'].replace(0, np.nan)
+
 # Redondear los valores de las estadísticas a 2 decimales
 # Para porteros
 euro_stats['GC/90s'] = (euro_stats['Goals Conceeded'] / euro_stats['90s']).round(2)
@@ -111,11 +114,23 @@ if st.session_state.posicion_seleccionada:
     with col1:
         player1 = st.selectbox("Player 1", players_names, key="player1")
         df_player1 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player1][["Player"] + params].reset_index(drop=True)
-    
+
     with col2:
-        # Eliminar el jugador 1 de la lista para evitar selección duplicada
-        players_names.remove(player1)
-        player2 = st.selectbox("Player 2", players_names, key="player2")
+        # Recuperar la selección previa de player2 si existe
+        prev_player2 = st.session_state.get("player2", None)
+        player2_options = [p for p in players_names if p != player1]
+        
+        # Si el anterior player2 ya no es válido, selecciona el primero de la lista
+        if prev_player2 not in player2_options:
+            default_player2 = player2_options[0] if player2_options else None
+        else:
+            default_player2 = prev_player2
+        player2 = st.selectbox(
+            "Player 2",
+            player2_options,
+            key="player2",
+            index=player2_options.index(default_player2) if default_player2 else 0
+        )
         df_player2 = df_jugadores_filtrados[df_jugadores_filtrados["Player"] == player2][["Player"] + params].reset_index(drop=True)
 
     # Unir dataframes de jugadores

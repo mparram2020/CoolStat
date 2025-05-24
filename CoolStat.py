@@ -23,17 +23,16 @@ load_dotenv()
 DATABASE_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 engine = create_engine(DATABASE_URL)
 
-# Cargar eurocopa_datos.csv
-# df = pd.read_csv('data/eurocopa_datos.csv')
-# df.to_sql('eurocopa_datos', engine, if_exists='replace', index=False)
 
-# Cargar el resto de archivos CSV
+# Cargar archivos CSV en base de datos
 #files = [
+#    'data/eurocopa_datos.csv',
 #    'data/euro_lineups.csv',
 #    'data/euro_all_events.csv',
 #    'data/copa_america_datos.csv',
 #    'data/copa_america_lineups.csv',
-#    'data/copa_america_all_events.csv'
+#    'data/copa_america_all_events.csv',
+#    'data/euro_players_stats.csv',
 #]
 #for file in files:
 #    df = pd.read_csv(file)
@@ -264,14 +263,15 @@ def pass_network(team, match_id):
     # Añadir leyenda
     legend_elements = [
         Line2D([0], [0], color='white', lw=4, label='More passes between players (thicker line)'),
-        Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', markerfacecolor='red', markeredgecolor='black', markersize=12)
+        Line2D([0], [0], marker='o', color='white', label='More passes by player (larger node)', 
+                markerfacecolor='red', markeredgecolor='black', markersize=12)
     ]
     
     # Leyenda
-    ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.022, 1))
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.02, 1.06))
 
     # Título
-    ax.set_title(f"{team}'s Passing Network", y=1.05, color='white', fontsize=20)
+    ax.set_title(f"{team}'s Passing Network", y=1.1, color='white', fontsize=20)
 
     st.pyplot(fig)
 

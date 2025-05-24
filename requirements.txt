@@ -9,6 +9,7 @@ plotly
 psycopg2-binary
 python-dotenv
 requests
+reportlab
 seaborn
 scikit-learn
 scipy

@@ -1,5 +1,6 @@
 asyncio
 faiss_cpu
+goal_plot
 matplotlib
 mplsoccer
 networkx

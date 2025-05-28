@@ -12,32 +12,17 @@ from statsbombpy import sb
 from scipy.stats import gaussian_kde
 import ast
 from sqlalchemy import create_engine
+from goal_plot import draw_goal
 
 # Configuración de la página
 st.set_page_config(page_title="CoolStat", page_icon="logo.jpg", layout="wide")
 
 # Cargar variables de entorno
-load_dotenv()
+# load_dotenv()
 
 # Crear conexión a la base de datos
 DATABASE_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 engine = create_engine(DATABASE_URL)
-
-
-# Cargar archivos CSV en base de datos
-#files = [
-#    'data/eurocopa_datos.csv',
-#    'data/euro_lineups.csv',
-#    'data/euro_all_events.csv',
-#    'data/copa_america_datos.csv',
-#    'data/copa_america_lineups.csv',
-#    'data/copa_america_all_events.csv',
-#    'data/euro_players_stats.csv',
-#]
-#for file in files:
-#    df = pd.read_csv(file)
-#    table_name = file.split('/')[-1].replace('.csv', '')
-#    df.to_sql(table_name, engine, if_exists='replace', index=False)
 
 # Cargar datos
 @st.cache_data
@@ -271,7 +256,7 @@ def pass_network(team, match_id):
     ax.legend(handles=legend_elements, loc='upper left', fontsize=12, facecolor='#22312b', edgecolor='white', labelcolor='white', bbox_to_anchor=(0.02, 1.06))
 
     # Título
-    ax.set_title(f"{team}'s Passing Network", y=1.1, color='white', fontsize=20)
+    ax.set_title(f"{team}'s Average Positions and Passing Network", y=1.1, color='white', fontsize=20)
 
     st.pyplot(fig)
 
@@ -431,9 +416,10 @@ def main():
         st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
         
         # Resultado y goleadores
-        goals = match_events[match_events["shot_outcome"] == "Goal"]  # Filtrar eventos de tipo "Goal"
-        own_goals = match_events[match_events["type"] == "Own Goal Against"] # Filtrar eventos de tipo "Own Goal"
-        missed_penalties = match_events[(match_events["shot_outcome"] == "Saved") & (match_events["shot_type"] == "Penalty")] # Filtrar penaltis fallados
+        goals = match_events[match_events["shot_outcome"] == "Goal"]  # Filtrar eventos de gol
+        own_goals = match_events[match_events["type"] == "Own Goal Against"] # Filtrar eventos de gol en propia puerta
+        missed_penalties = match_events[(match_events["shot_type"] == "Penalty")
+                                        & ((match_events["shot_outcome"].isin(["Saved", "Post"])))] # Filtrar penaltis fallados
 
         # Filtrar goles por equipo
         home_goals = goals[goals["team"] == match_details.iloc[0]["home_team"]]
@@ -501,7 +487,7 @@ def main():
             """, unsafe_allow_html=True)
 
             # Mostrar los goles en la tanda de penaltis solo si existen
-            if not shootout_goals.empty:
+            if shootout_goals.shape[0] > 0:
                 st.markdown(f"""
                     <h4 style='text-align: center; color: gray;'>
                         ({home_shootout_goals} - {away_shootout_goals})
@@ -707,7 +693,6 @@ def main():
             shot_map(away_team, away_team_played["match_id"].iloc[0])
 
         st.warning("⚠️ Penalties are not included in the shot maps.")
-
 
     # st.divider()
     #with st.expander('ℹ️ Disclaimer & Info'):

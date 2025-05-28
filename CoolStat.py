@@ -697,7 +697,7 @@ def main():
     # st.divider()
     #with st.expander('ℹ️ Disclaimer & Info'):
     #    st.write('''
-    #   - Todos los datos en esta app provienen del repositorio de datos abiertos de StatsBomb.
+    #   - Todos los datos en esta app provienen del repositorio de datos abiertos de StatsBomb y FBref.
     #   - Esta app es solo para fines educativos.
     #''')
 

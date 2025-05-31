@@ -1,4 +1,4 @@
-# TFG
+# CoolStat
 ## Football Statistics Visualization Dashboard
 
 This Streamlit application provides interactive visualizations for football (soccer) player and team statistics, including:
@@ -19,5 +19,5 @@ pip install -r requirements
 
 3. Run the Streamlit app
 ```bash
-streamlit run <app_name.py>
+streamlit run CoolStat.py
 ```

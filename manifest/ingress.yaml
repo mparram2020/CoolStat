@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coolstat-ingress-subpath
+  namespace: coolstat
+  annotations:
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '43200'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '43200'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '43200'
+    nginx.ingress.kubernetes.io/client-max-body-size: "100G"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100G"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: fluor.ii.uam.es
+    http:
+      paths:
+      - path: /coolstat(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service: 
+            name: streamlit-service
+            port: 
+              number: 8501
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coolstat-ingress
+  namespace: coolstat
+  annotations:
+    cert-manager.io/cluster-issuer: cert-manager-webhook-duckdns-production
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '43200'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '43200'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '43200'
+    nginx.ingress.kubernetes.io/client-max-body-size: "100G"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100G"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: coolstat.fluor-hpcn.duckdns.org
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service: 
+            name: streamlit-service
+            port: 
+              number: 8501
+  tls:
+  - hosts:
+    - coolstat.fluor-hpcn.duckdns.org
+    secretName: coolstat-cert

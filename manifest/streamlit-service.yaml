@@ -2,11 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: streamlit-service
+  namespace: coolstat
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: streamlit-app
   ports:
   - port: 8501
     targetPort: 8501
-    nodePort: 30001 # Es el puerto que se expondrá en el nodo del clúster para acceder a la app Streamlit
